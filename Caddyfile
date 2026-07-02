@@ -2,7 +2,7 @@
 	email {$ACME_EMAIL}
 }
 
-{$DOMAIN} {
+{$DOMAIN}, http://{$SERVER_IP} {
 	encode gzip
 
 	# Backend API — strips the /api prefix before proxying

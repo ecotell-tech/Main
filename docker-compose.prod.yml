@@ -62,6 +62,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL}
+      SERVER_IP: ${SERVER_IP}
     ports:
       - "80:80"
       - "443:443"
