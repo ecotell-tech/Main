@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci && chmod +x node_modules/.bin/*
 COPY . .
 # Vite automatically loads .env.production for this build (mode=production)
 RUN npm run build

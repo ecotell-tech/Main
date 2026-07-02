@@ -30,6 +30,8 @@ pip-wheel-metadata/
 # Environment files
 .env
 .env.*
+!.env.production.example
+!backend/.env.production.example
 
 # Uploads & user-generated files
 uploads/
@@ -52,7 +54,6 @@ logs/
 
 # Docker
 docker-compose.override.yml
-.dockerignore
 
 # Misc
 .cache/
