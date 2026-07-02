@@ -1,0 +1,20 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	# Backend API — strips the /api prefix before proxying
+	# (FastAPI routes are mounted at /auth, /farmers, etc. with no prefix)
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Static frontend (SPA fallback to index.html)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

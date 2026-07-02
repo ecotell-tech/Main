@@ -1,0 +1,80 @@
+services:
+
+  # ─── MySQL 8.0 Database ───────────────────────────────────────
+  # No published port — only reachable by other containers on the compose network.
+  db:
+    image: mysql:8.0
+    container_name: profitportal_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/seed_permissions.sql:/docker-entrypoint-initdb.d/02_seed_permissions.sql
+      - ./database/seed_demo_users.sql:/docker-entrypoint-initdb.d/03_seed_demo_users.sql
+      - ./database/seed_maharashtra_geography.sql:/docker-entrypoint-initdb.d/04_seed_maharashtra_geography.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (OTP sessions + caching) ──────────────────────────
+  # No published port — internal only.
+  redis:
+    image: redis:7-alpine
+    container_name: profitportal_redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── FastAPI Backend ──────────────────────────────────────────
+  # No published port — only reachable via the caddy container's /api proxy.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: profitportal_backend
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads   # persist uploaded photos across container restarts
+    env_file: ./backend/.env.production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── Caddy: serves the built frontend + reverse-proxies /api + auto TLS ─
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: profitportal_frontend
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  mysqldata:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
