@@ -1,0 +1,95 @@
+services:
+
+  # ─── MySQL 8.0 Database ───────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: profitportal_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: profit_portal
+      MYSQL_USER: pscms
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/seed_permissions.sql:/docker-entrypoint-initdb.d/02_seed_permissions.sql
+      - ./database/seed_demo_users.sql:/docker-entrypoint-initdb.d/03_seed_demo_users.sql
+      - ./database/seed_maharashtra_geography.sql:/docker-entrypoint-initdb.d/04_seed_maharashtra_geography.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "pscms", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (OTP sessions + caching) ──────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: profitportal_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── FastAPI Backend ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: profitportal_backend
+    restart: unless-stopped
+    volumes:
+      - ./backend/app:/app/app    # hot-reload: code changes reflect instantly
+      - ./database:/app/database  # schema.sql accessible to Alembic migrations
+      - ./backend/alembic:/app/alembic  # migration scripts
+      - ./backend/alembic.ini:/app/alembic.ini  # alembic config
+      - ./uploads:/app/uploads    # persist uploaded photos across container restarts
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── React / Vite Frontend ────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: profitportal_frontend
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src    # hot-reload: code changes reflect instantly
+    env_file: ./.env
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  # ─── phpMyAdmin (Database GUI) ───────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: profitportal_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: pscms
+      PMA_PASSWORD: secret
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysqldata:
+    driver: local

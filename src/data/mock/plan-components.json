@@ -1,0 +1,38 @@
+[
+  {
+    "id": "pc-irrigation",
+    "icon": "fas fa-tint",
+    "label": "Irrigation Plans",
+    "completed": 14,
+    "total": 18,
+    "barVariant": "blue",
+    "iconColor": "var(--clr-blue)"
+  },
+  {
+    "id": "pc-fertilizer",
+    "icon": "fas fa-seedling",
+    "label": "Fertilizer Plans",
+    "completed": 11,
+    "total": 18,
+    "barVariant": "",
+    "iconColor": "var(--clr-primary)"
+  },
+  {
+    "id": "pc-spray",
+    "icon": "fas fa-spray-can",
+    "label": "Spray Schedules",
+    "completed": 9,
+    "total": 18,
+    "barVariant": "amber",
+    "iconColor": "var(--clr-amber)"
+  },
+  {
+    "id": "pc-advisory",
+    "icon": "fas fa-leaf",
+    "label": "Crop Advisory",
+    "completed": 16,
+    "total": 18,
+    "barVariant": "brown",
+    "iconColor": "var(--clr-brown)"
+  }
+]

@@ -1,0 +1,1 @@
+import{f as t}from"./index-OdtiGvjY.js";async function r(){return t("/admin/users")}async function a(s){return t("/admin/users",{method:"POST",body:JSON.stringify(s)})}async function u(s,e){return t(`/admin/users/${s}`,{method:"PUT",body:JSON.stringify(e)})}async function i(s){return t(`/admin/users/${s}/status`,{method:"PATCH"})}export{a as c,r as g,i as t,u};

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(docker exec profitportal_db mysql -u pscms -psecret profit_portal -e \"source /tmp/seed_geography.sql\" 2>&1)",
+      "PowerShell(docker cp \"d:\\\\PSCMS\\\\ProfitPortal\\\\database\\\\seed_maharashtra_geography.sql\" profitportal_db:/tmp/seed_geography.sql)",
+      "Bash(node -e ' *)",
+      "Bash(grep -E '\\\\.jsx?$')",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)"
+    ]
+  }
+}

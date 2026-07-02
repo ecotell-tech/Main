@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(docker exec profitportal_backend alembic stamp 001 2>&1)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/health\" -Method Get -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/docs\" -Method Get -ErrorAction SilentlyContinue)",
+      "PowerShell(docker cp \"d:\\\\PSCMS\\\\ProfitPortal\\\\database\\\\seed_maharashtra_geography.sql\" profitportal_db:/tmp/seed_geography.sql 2>&1)"
+    ]
+  }
+}

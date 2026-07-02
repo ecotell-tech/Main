@@ -1,0 +1,44 @@
+[
+  {
+    "id": "act-001",
+    "dot": "green",
+    "time": "Today, 10:30 AM",
+    "action": "Irrigation plan updated",
+    "farmerSummary": "Ramesh Patel — Petlad"
+  },
+  {
+    "id": "act-002",
+    "dot": "blue",
+    "time": "Today, 09:00 AM",
+    "action": "Field visit completed",
+    "farmerSummary": "Suresh Sharma — Nadiad"
+  },
+  {
+    "id": "act-003",
+    "dot": "amber",
+    "time": "Yesterday, 3:45 PM",
+    "action": "Fertilizer plan created",
+    "farmerSummary": "Vijay Patel — Borsad"
+  },
+  {
+    "id": "act-004",
+    "dot": "green",
+    "time": "18 Apr 2026",
+    "action": "Consulting plan completed",
+    "farmerSummary": "Dinesh Kumar — Matar"
+  },
+  {
+    "id": "act-005",
+    "dot": "muted",
+    "time": "17 Apr 2026",
+    "action": "Spray schedule set",
+    "farmerSummary": "Kamlesh Joshi — Padra"
+  },
+  {
+    "id": "act-006",
+    "dot": "blue",
+    "time": "16 Apr 2026",
+    "action": "New farmer assigned",
+    "farmerSummary": "Mahesh Verma — Anklav"
+  }
+]

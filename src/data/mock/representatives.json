@@ -1,0 +1,72 @@
+[
+  {
+    "id": "rep-1",
+    "name": "Dr. Ravi Desai",
+    "initials": "RD",
+    "mobile": "9579263798",
+    "territory": "Nashik Taluka",
+    "district": "Nashik",
+    "farmersAssigned": 24,
+    "farmersCaptured": 18,
+    "pendingVisits": 5,
+    "lastActive": "Today",
+    "status": "active",
+    "joinedDate": "2025-01-10"
+  },
+  {
+    "id": "rep-2",
+    "name": "Kavita Mane",
+    "initials": "KM",
+    "mobile": "9876543210",
+    "territory": "Yeola Cluster",
+    "district": "Nashik",
+    "farmersAssigned": 31,
+    "farmersCaptured": 27,
+    "pendingVisits": 3,
+    "lastActive": "Yesterday",
+    "status": "active",
+    "joinedDate": "2025-02-15"
+  },
+  {
+    "id": "rep-3",
+    "name": "Santosh Wagh",
+    "initials": "SW",
+    "mobile": "9821234567",
+    "territory": "Sinnar Block",
+    "district": "Nashik",
+    "farmersAssigned": 19,
+    "farmersCaptured": 14,
+    "pendingVisits": 8,
+    "lastActive": "3 days ago",
+    "status": "active",
+    "joinedDate": "2025-03-01"
+  },
+  {
+    "id": "rep-4",
+    "name": "Meena Thorat",
+    "initials": "MT",
+    "mobile": "9765432109",
+    "territory": "Niphad Cluster",
+    "district": "Nashik",
+    "farmersAssigned": 22,
+    "farmersCaptured": 10,
+    "pendingVisits": 12,
+    "lastActive": "1 week ago",
+    "status": "inactive",
+    "joinedDate": "2025-01-20"
+  },
+  {
+    "id": "rep-5",
+    "name": "Ajay Patil",
+    "initials": "AP",
+    "mobile": "9654321098",
+    "territory": "Dindori Taluka",
+    "district": "Nashik",
+    "farmersAssigned": 28,
+    "farmersCaptured": 25,
+    "pendingVisits": 2,
+    "lastActive": "Today",
+    "status": "active",
+    "joinedDate": "2025-02-01"
+  }
+]

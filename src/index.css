@@ -1,0 +1,119 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── shadcn/ui CSS variables — green theme ─────────────────── */
+@layer base {
+  :root {
+    /* Background: very light warm green-gray */
+    --background: 120 14% 96%;
+    --foreground: 124 55% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 124 55% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 124 55% 9%;
+
+    /* Primary: Material Green 800 (#2E7D32) ≈ HSL 123°, 46%, 34% */
+    --primary: 123 46% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 120 20% 95%;
+    --secondary-foreground: 123 46% 22%;
+
+    --muted: 120 10% 93%;
+    --muted-foreground: 120 5% 42%;
+
+    --accent: 120 22% 91%;
+    --accent-foreground: 123 46% 22%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 120 14% 87%;
+    --input: 120 14% 87%;
+    --ring: 123 46% 34%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar: Material Green 900 (#1B5E20) ≈ HSL 124°, 55%, 23% */
+    --sidebar:          124 55% 23%;
+    --sidebar-foreground: 0 0% 96%;
+
+    /* Layout */
+    --sidebar-w: 262px;
+    --header-h: 64px;
+
+    /* Mobile responsive layout helpers */
+    --bottom-nav-h: 64px;   /* height of mobile bottom nav bar */
+    --footer-left:  0px;    /* wizard footer left offset on mobile */
+    --main-pb: calc(var(--bottom-nav-h) + 0.75rem); /* main content bottom padding */
+  }
+
+  /* On lg+ screens: sidebar visible, no bottom nav */
+  @media (min-width: 1024px) {
+    :root {
+      --bottom-nav-h: 0px;
+      --footer-left:  var(--sidebar-w);
+      --main-pb: 1.5rem;
+    }
+  }
+}
+
+/* ── Base resets ─────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border box-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--foreground));
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4, h5 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+}
+
+/* ── Custom utility classes ──────────────────────────────────── */
+@layer utilities {
+  /* Shimmer animation on the wizard progress fill bar */
+  .progress-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -70%; bottom: 0;
+    width: 55%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%);
+    transform: skewX(-18deg);
+    animation: progress-shimmer 1.6s ease-in-out infinite;
+  }
+
+  /* Scrollbar styling */
+  .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+  .custom-scroll::-webkit-scrollbar-track { background: hsl(var(--muted)); border-radius: 999px; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); }
+
+  /* OTP box */
+  .otp-box {
+    @apply w-11 h-12 text-center text-lg font-bold border-2 border-border rounded-xl bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all;
+  }
+  .otp-box:focus { @apply border-primary; }
+}

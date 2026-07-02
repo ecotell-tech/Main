@@ -1,0 +1,56 @@
+[
+  {
+    "farmerId": "FMR-2024-001",
+    "farmer": "Ramesh Patel",
+    "crop": "Cotton",
+    "visits": 4,
+    "plansCompleted": 3,
+    "totalPlans": 4,
+    "lastVisit": "19 Apr 2026"
+  },
+  {
+    "farmerId": "FMR-2024-002",
+    "farmer": "Suresh Sharma",
+    "crop": "Wheat",
+    "visits": 3,
+    "plansCompleted": 2,
+    "totalPlans": 4,
+    "lastVisit": "20 Apr 2026"
+  },
+  {
+    "farmerId": "FMR-2024-003",
+    "farmer": "Mahesh Verma",
+    "crop": "Rice",
+    "visits": 1,
+    "plansCompleted": 0,
+    "totalPlans": 4,
+    "lastVisit": "10 Apr 2026"
+  },
+  {
+    "farmerId": "FMR-2024-004",
+    "farmer": "Dinesh Kumar",
+    "crop": "Cotton",
+    "visits": 6,
+    "plansCompleted": 4,
+    "totalPlans": 4,
+    "lastVisit": "15 Apr 2026"
+  },
+  {
+    "farmerId": "FMR-2024-005",
+    "farmer": "Vijay Patel",
+    "crop": "Groundnut",
+    "visits": 3,
+    "plansCompleted": 2,
+    "totalPlans": 4,
+    "lastVisit": "18 Apr 2026"
+  },
+  {
+    "farmerId": "FMR-2024-006",
+    "farmer": "Kamlesh Joshi",
+    "crop": "Sugarcane",
+    "visits": 2,
+    "plansCompleted": 1,
+    "totalPlans": 4,
+    "lastVisit": "17 Apr 2026"
+  }
+]

@@ -1,0 +1,1 @@
+import{f as e}from"./index-OdtiGvjY.js";async function o({page:r=1,limit:a=100}={}){const t=new URLSearchParams({page:r,limit:a});return e(`/reports/plan-completion?${t}`)}async function s(){return e("/reports/team-performance")}async function c({limit:r=10}={}){const a=new URLSearchParams({limit:r});return e(`/reports/top-farmers?${a}`)}export{c as a,s as b,o as g};

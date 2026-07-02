@@ -1,0 +1,38 @@
+[
+  {
+    "id": "stat-farmers",
+    "iconClass": "fas fa-users",
+    "iconVariant": "green",
+    "value": 24,
+    "label": "Assigned Farmers",
+    "changeText": "3 this week",
+    "changeType": "up"
+  },
+  {
+    "id": "stat-plans",
+    "iconClass": "fas fa-clipboard-check",
+    "iconVariant": "blue",
+    "value": 18,
+    "label": "Active Plans",
+    "changeText": "2 new",
+    "changeType": "up"
+  },
+  {
+    "id": "stat-visits",
+    "iconClass": "fas fa-calendar-alt",
+    "iconVariant": "amber",
+    "value": 5,
+    "label": "Pending Visits",
+    "changeText": "Overdue: 2",
+    "changeType": "down"
+  },
+  {
+    "id": "stat-completed",
+    "iconClass": "fas fa-check-circle",
+    "iconVariant": "brown",
+    "value": 6,
+    "label": "Completed This Month",
+    "changeText": "On target",
+    "changeType": "up"
+  }
+]

@@ -1,0 +1,56 @@
+{
+  "crops": [
+    "Cotton", "Wheat", "Rice", "Groundnut", "Banana",
+    "Sugarcane", "Vegetables", "Maize", "Soybean", "Bajra",
+    "Jowar", "Castor", "Turmeric", "Chilli", "Onion"
+  ],
+
+  "cropFilterOptions": [
+    "Cotton", "Wheat", "Rice", "Groundnut", "Sugarcane"
+  ],
+
+  "planStatusOptions": ["active", "pending", "completed"],
+
+  "inputs": [
+    "Chemical Fertilizer", "Pesticides", "Bio-fertilizer",
+    "Compost / FYM", "Jeevamrut", "Neem Products"
+  ],
+
+  "challenges": [
+    "Pest/Disease", "Water Scarcity", "Soil Degradation",
+    "Market Access", "Finance", "Labour Shortage", "Climate Risk"
+  ],
+
+  "govtSchemes": [
+    "PM-KUSUM", "PKVY", "NHM", "MGNREGS", "FPO Membership", "None"
+  ],
+
+  "irrigationInfra": [
+    "Drip System", "Sprinkler", "Pump Set", "None"
+  ],
+
+  "visitTypes": [
+    "Irrigation Check", "Fertilizer Advisory", "Spray Schedule",
+    "Crop Advisory", "General Visit", "Follow-up"
+  ],
+
+  "adoptionLevels": ["High", "Medium", "Low"],
+
+  "notificationOptions": [
+    {
+      "key":   "visitReminders",
+      "label": "Visit Reminders",
+      "desc":  "Get notified before scheduled field visits."
+    },
+    {
+      "key":   "planUpdates",
+      "label": "Plan Updates",
+      "desc":  "Alerts when a consulting plan changes status."
+    },
+    {
+      "key":   "newAssignments",
+      "label": "New Assignments",
+      "desc":  "Notify when a new farmer is assigned to you."
+    }
+  ]
+}
