@@ -17,7 +17,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Override sqlalchemy.url with the value from .env
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# '%' must be escaped as '%%' — Config.set_main_option() writes through
+# ConfigParser, which otherwise treats '%' (e.g. from a URL-encoded password
+# like %40) as interpolation syntax and raises ValueError.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # We don't use target_metadata for autogenerate here (raw SQL migrations)
 target_metadata = None
