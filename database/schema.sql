@@ -906,11 +906,11 @@ CREATE TABLE farm_photos (
   KEY idx_fp_visit_id        (visit_id),
   KEY idx_fp_uploaded_by     (uploaded_by_user_id),
 
-  CONSTRAINT fk_fp_farmer
+  CONSTRAINT fk_farm_photos_farmer
     FOREIGN KEY (farmer_id)           REFERENCES farmers(id) ON DELETE CASCADE,
-  CONSTRAINT fk_fp_visit
+  CONSTRAINT fk_farm_photos_visit
     FOREIGN KEY (visit_id)            REFERENCES visits(id)  ON DELETE SET NULL,
-  CONSTRAINT fk_fp_uploaded_by
+  CONSTRAINT fk_farm_photos_uploaded_by
     FOREIGN KEY (uploaded_by_user_id) REFERENCES users(id)   ON DELETE SET NULL
 ) ENGINE=InnoDB
   COMMENT='Photos associated with farms and field visits';
