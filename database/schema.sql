@@ -178,6 +178,7 @@ CREATE TABLE users (
   -- ── Role & Reporting ────────────────────────────────────────
   role_id              TINYINT UNSIGNED NOT NULL,
   reporting_to_user_id BIGINT UNSIGNED      NULL  COMMENT 'Self-referential org hierarchy',
+  manager_user_id      BIGINT UNSIGNED      NULL  COMMENT 'The managing user (manager/supervisor) this account reports to',
   designation          VARCHAR(120)         NULL,
   department           VARCHAR(100)         NULL,
   employment_type      ENUM('permanent','contract','probation','intern') NULL,
