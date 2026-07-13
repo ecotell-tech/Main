@@ -200,7 +200,7 @@ export default function LoginPage() {
             <p className="mt-0.5">
               Developed by{' '}
               <a
-                href="https://techyogi.in"
+                href="https://Ecotell.com"
                 className="text-primary font-semibold hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
