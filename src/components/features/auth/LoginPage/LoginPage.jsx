@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { useNavigate } from 'react-router-dom';
 import { useAuth }     from '@context/AuthContext';
+import { useToast }    from '@hooks/useToast';
 import { ROUTES }      from '@constants/routes';
 import { APP_CONFIG }  from '@constants/appConfig';
 import LoginBrandPanel     from '@features/auth/LoginBrandPanel/LoginBrandPanel';
@@ -8,6 +10,43 @@ import PasswordLoginForm   from '@features/auth/PasswordLoginForm/PasswordLoginF
 import OtpLoginForm        from '@features/auth/OtpLoginForm/OtpLoginForm';
 
 const LOGIN_METHOD = Object.freeze({ PASSWORD: 'password', OTP: 'otp' });
+
+const ANDROID_APK_URL = `${window.location.origin}/downloads/app.apk`;
+
+function AndroidAppBanner({ onClick }) {
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+
+  useEffect(() => {
+    QRCode.toDataURL(ANDROID_APK_URL, { width: 96, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="flex items-center gap-3 mt-5 p-3 rounded-xl bg-blue-50 border border-blue-100">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+      >
+        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-600 text-white shrink-0">
+          <i className="fab fa-android text-base" aria-hidden="true" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-blue-900">Android app coming soon</div>
+          <div className="text-[0.7rem] text-blue-700">Click here to download</div>
+        </div>
+      </button>
+      {qrDataUrl && (
+        <img
+          src={qrDataUrl}
+          alt="Scan to download the Android app"
+          className="w-12 h-12 rounded-md ring-1 ring-blue-200 shrink-0"
+        />
+      )}
+    </div>
+  );
+}
 
 const DEMO_CREDS = [
   { role: 'Farmer Representative', mobile: '9579263798', password: '9579263798',     color: 'text-green-700'  },
@@ -53,6 +92,7 @@ function DemoCredentialsPanel({ onFill }) {
 export default function LoginPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
 
   const [activeMethod, setActiveMethod] = useState(LOGIN_METHOD.PASSWORD);
   const [isMobile,     setIsMobile]     = useState(false);
@@ -76,6 +116,10 @@ export default function LoginPage() {
 
   function handleAuthSuccess() {
     navigate(ROUTES.abs.dashboard, { replace: true });
+  }
+
+  function handleAndroidDownloadClick() {
+    showToast('Android app launching soon — stay tuned!', 'warning');
   }
 
   return (
@@ -135,6 +179,9 @@ export default function LoginPage() {
               : <OtpLoginForm      onSuccess={handleAuthSuccess} />
             }
           </div>
+
+          {/* Android app banner */}
+          <AndroidAppBanner onClick={handleAndroidDownloadClick} />
 
           {/* Demo credentials (dev only) */}
           {import.meta.env.VITE_APP_ENV === 'development' && (

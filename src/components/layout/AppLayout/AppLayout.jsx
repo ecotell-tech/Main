@@ -3,7 +3,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '@layout/Sidebar/Sidebar';
 import AppHeader from '@layout/AppHeader/AppHeader';
 import BottomNav from '@layout/BottomNav/BottomNav';
-import ToastContainer from '@common/Toast/ToastContainer';
 import { ROUTE_REGISTRY } from '@constants/routeRegistry';
 import { useAuth } from '@context/AuthContext';
 
@@ -83,7 +82,6 @@ export default function AppLayout() {
       </div>
 
       <BottomNav />
-      <ToastContainer />
     </div>
   );
 }

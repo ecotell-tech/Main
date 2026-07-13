@@ -10,6 +10,7 @@ import { ROUTE_REGISTRY } from '@constants/routeRegistry';
 import AppLayout from '@layout/AppLayout/AppLayout';
 import LoginPage from '@features/auth/LoginPage/LoginPage';
 import ProtectedRoute from '@components/common/ProtectedRoute/ProtectedRoute';
+import ToastContainer from '@common/Toast/ToastContainer';
 
 /**
  * App — Root router.
@@ -63,6 +64,7 @@ export default function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to={ROUTES.LOGIN} replace />} />
           </Routes>
+          <ToastContainer />
           </ToastProvider>
           </FormConfigProvider>
           </ModuleAccessProvider>
