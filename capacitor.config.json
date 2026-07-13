@@ -1,0 +1,9 @@
+{
+  "appId": "com.ecotell.pruthashakti",
+  "appName": "Pruthashakti",
+  "webDir": "dist",
+  "server": {
+    "url": "https://kisankalyan.tech",
+    "cleartext": false
+  }
+}

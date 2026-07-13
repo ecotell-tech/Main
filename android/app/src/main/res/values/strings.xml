@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pruthashakti</string>
+    <string name="title_activity_main">Pruthashakti</string>
+    <string name="package_name">com.ecotell.pruthashakti</string>
+    <string name="custom_url_scheme">com.ecotell.pruthashakti</string>
+</resources>
