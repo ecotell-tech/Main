@@ -94,7 +94,15 @@ export default function FarmersTable({
               <div className="flex items-center gap-3">
                 <Avatar initials={farmer.initials} gradient={farmer.avatarGradient} size="md" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-foreground truncate">{farmer.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-sm font-semibold text-foreground truncate">{farmer.name}</div>
+                    {farmer.registrationSource === 'bulk_import' && (
+                      <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-blue-50 text-blue-600 text-[0.58rem] font-semibold shrink-0" title="Imported via spreadsheet upload">
+                        <i className="fas fa-file-import text-[0.5rem]" />
+                        Imported
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[0.68rem] text-muted-foreground">{farmer.village}, {farmer.district}</div>
                   {isTeamLead && (
                     <div className="text-[0.62rem] text-primary/70 mt-0.5">

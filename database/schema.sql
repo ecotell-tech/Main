@@ -564,6 +564,8 @@ CREATE TABLE farmers (
   submission_notes      TEXT                 NULL,
   avatar_gradient       VARCHAR(120)         NULL,
   is_draft              TINYINT(1)       NOT NULL  DEFAULT 0  COMMENT '1 during step-by-step wizard; set to 0 on final submit',
+  registration_source   ENUM('manual','bulk_import') NOT NULL DEFAULT 'manual'
+                         COMMENT 'How this record was created — set by the server, never client-provided',
 
   -- ── Review workflow ──────────────────────────────────────────
   review_status         ENUM('pending_review','approved','rejected') NOT NULL DEFAULT 'pending_review',

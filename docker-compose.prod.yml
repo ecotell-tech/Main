@@ -14,9 +14,8 @@ services:
     volumes:
       - mysqldata:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./database/seed_permissions.sql:/docker-entrypoint-initdb.d/02_seed_permissions.sql
-      - ./database/seed_demo_users.sql:/docker-entrypoint-initdb.d/03_seed_demo_users.sql
-      - ./database/seed_maharashtra_geography.sql:/docker-entrypoint-initdb.d/04_seed_maharashtra_geography.sql
+      - ./database/seed_demo_users.sql:/docker-entrypoint-initdb.d/02_seed_demo_users.sql
+      - ./database/seed_maharashtra_geography.sql:/docker-entrypoint-initdb.d/03_seed_maharashtra_geography.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
       interval: 10s
@@ -45,6 +44,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./uploads:/app/uploads   # persist uploaded photos across container restarts
+      - ./database:/app/database:ro   # schema.sql — read by Alembic migration 001
     env_file: ./backend/.env.production
     depends_on:
       db:

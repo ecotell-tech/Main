@@ -3,17 +3,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /**
  * Countdown timer for OTP expiry.
  *
- * @param {number}  initialSeconds  - Total countdown seconds (default 120).
+ * @param {number}  initialSeconds  - Fallback countdown seconds, used only
+ *                                    until the server tells us the real TTL.
  * @param {Function} onExpire       - Callback fired when timer reaches zero.
  * @returns {{
  *   secondsLeft:  number,
  *   isExpired:    boolean,
  *   formattedTime: string,
- *   startTimer:   Function,
+ *   startTimer:   (seconds?: number) => void,
  *   resetTimer:   Function,
  * }}
  */
-export function useOtpTimer(initialSeconds = 120, onExpire = () => {}) {
+export function useOtpTimer(initialSeconds, onExpire = () => {}) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const [isRunning,   setIsRunning]   = useState(false);
   const intervalRef = useRef(null);
@@ -23,9 +24,11 @@ export function useOtpTimer(initialSeconds = 120, onExpire = () => {}) {
     intervalRef.current = null;
   };
 
-  const startTimer = useCallback(() => {
+  // Pass a duration to start with the server's actual OTP TTL — falls back
+  // to initialSeconds only if the caller doesn't have a real value yet.
+  const startTimer = useCallback((seconds) => {
     clearTimer();
-    setSecondsLeft(initialSeconds);
+    setSecondsLeft(seconds ?? initialSeconds);
     setIsRunning(true);
   }, [initialSeconds]);
 

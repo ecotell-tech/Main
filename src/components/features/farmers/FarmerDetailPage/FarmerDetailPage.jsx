@@ -517,9 +517,22 @@ export default function FarmerDetailPage() {
     { label: 'High (70–100)', w: 30, color: '#16a34a' },
   ];
 
+  const isImported = farmer.registrationSource === 'bulk_import';
+
   const LIFECYCLE = [
-    { icon: 'fas fa-user-plus',    color: '#2563eb', label: 'Farmer Registered', by: farmer.registeredBy, date: farmer.registrationDate },
-    { icon: 'fas fa-map-location', color: '#d97706', label: 'Field Survey Done',  by: farmer.registeredBy, date: farmer.surveyDate       },
+    {
+      icon: 'fas fa-user-plus', color: '#2563eb',
+      label: isImported ? 'Farmer Registered (Spreadsheet Import)' : 'Farmer Registered',
+      by: farmer.registeredBy, date: farmer.registrationDate,
+    },
+    {
+      // For imported rows, survey_date is a data field carried over from the
+      // spreadsheet — the uploader didn't personally conduct that survey, so
+      // don't attribute it to them.
+      icon: 'fas fa-map-location', color: '#d97706', label: 'Field Survey Done',
+      by: isImported ? 'Recorded in import data' : farmer.registeredBy,
+      date: farmer.surveyDate,
+    },
     { icon: 'fas fa-circle-check', color: '#7c3aed', label: 'Record Approved',    by: farmer.approvedBy,   date: farmer.approvedDate     },
     { icon: 'fas fa-play-circle',  color: '#16a34a', label: 'Plan Initiated',     by: 'System',            date: farmer.registrationDate },
   ];
@@ -1091,6 +1104,7 @@ export default function FarmerDetailPage() {
               <InfoRow icon="fas fa-calendar-plus"             label="Registration Date" value={farmer.registrationDate} iconColor="#2563eb" />
               <InfoRow icon="fas fa-user-pen"                  label="Registered By"     value={farmer.registeredBy}     iconColor="#16a34a" />
               <InfoRow icon="fas fa-id-badge"                  label="Submitter Role"    value={ROLE_LABEL[farmer.submittedByRole] ?? farmer.submittedByRole} iconColor="#d97706" />
+              <InfoRow icon="fas fa-file-import"                label="Registration Source" value={farmer.registrationSource === 'bulk_import' ? 'Spreadsheet Import' : 'Manual Entry'} iconColor="#2563eb" />
               <InfoRow icon="fas fa-magnifying-glass-location" label="Survey Date"       value={farmer.surveyDate}       iconColor="#e11d48" />
               <InfoRow icon="fas fa-user-check"                label="Approved By"       value={farmer.approvedBy}       iconColor="#7c3aed" />
               <InfoRow icon="fas fa-calendar-check"            label="Approval Date"     value={farmer.approvedDate}     iconColor="#0d9488" />

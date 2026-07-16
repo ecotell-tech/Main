@@ -24,8 +24,10 @@ export default function OtpLoginForm({ onSuccess }) {
 
   const inputRefs = useRef([]);
 
+  // No initial duration — the timer only ever starts once the server tells
+  // us the real OTP TTL (see handleSendOtp/handleResend below).
   const { formattedTime, isExpired, startTimer } = useOtpTimer(
-    APP_CONFIG.otp.expirySeconds,
+    0,
     () => showToast('OTP expired. Please request a new one.', 'warning')
   );
 
@@ -42,7 +44,7 @@ export default function OtpLoginForm({ onSuccess }) {
     if (result.success) {
       setOtpDigits(Array(OTP_LENGTH).fill(''));
       setStep(2);
-      startTimer();
+      startTimer(result.expiresIn);
       showToast(`OTP sent to ${otpMobile}`, 'success');
     } else {
       setMobileError(result.error);
@@ -98,7 +100,7 @@ export default function OtpLoginForm({ onSuccess }) {
     setOtpDigits(Array(OTP_LENGTH).fill(''));
     const result = await sendOtp(otpMobile);
     if (result.success) {
-      startTimer();
+      startTimer(result.expiresIn);
       showToast(`OTP resent to ${otpMobile}`, 'success');
     } else {
       showToast(result.error, 'error');

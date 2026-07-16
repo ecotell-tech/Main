@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.exceptions import unauthorized
 from app.core.redis import get_redis
 from app.database import get_db
@@ -31,10 +32,6 @@ def _initials(name: str) -> str:
     if parts:
         return parts[0][:2].upper() if len(parts[0]) >= 2 else parts[0].upper()
     return name[:2].upper()
-
-# OTP config — matches the frontend's APP_CONFIG.otp (6 digits, 120s expiry).
-_OTP_TTL_SECONDS  = 120
-_OTP_MAX_ATTEMPTS = 5
 
 
 class AuthService:
@@ -75,31 +72,36 @@ class AuthService:
 
         return self._issue_token(user)
 
-    async def request_otp(self, mobile: str) -> None:
+    async def request_otp(self, mobile: str) -> int:
+        """Generate and store an OTP. Returns its TTL in seconds so the
+        caller (frontend countdown timer) always matches the real value —
+        no separate hardcoded expiry duplicated on the client."""
         user = await self._get_active_user(mobile)
         if not user or user.status != "active":
             raise unauthorized("No active account found for this mobile number")
 
+        ttl = settings.otp_expiry_seconds
         otp = f"{random.randint(0, 999_999):06d}"
-        await self.redis.set(f"otp:{mobile}", otp, ex=_OTP_TTL_SECONDS)
+        await self.redis.set(f"otp:{mobile}", otp, ex=ttl)
         await self.redis.delete(f"otp_attempts:{mobile}")
 
         # No SMS gateway send integration is wired up yet (SmsGatewayConfigPage
         # only stores provider config) — log the code so it's visible to
         # developers/testers instead of silently disappearing. WARNING level
         # so it's visible under the app's default logging config.
-        logger.warning("[DEV OTP] %s -> %s (expires in %ss)", mobile, otp, _OTP_TTL_SECONDS)
+        logger.warning("[DEV OTP] %s -> %s (expires in %ss)", mobile, otp, ttl)
+        return ttl
 
     async def verify_otp(self, mobile: str, otp: str) -> TokenResponse:
         attempts_key = f"otp_attempts:{mobile}"
         attempts = int(await self.redis.get(attempts_key) or 0)
-        if attempts >= _OTP_MAX_ATTEMPTS:
+        if attempts >= settings.otp_max_attempts:
             raise unauthorized("Too many incorrect attempts. Please request a new OTP.")
 
         stored = await self.redis.get(f"otp:{mobile}")
         if not stored or stored != otp:
             await self.redis.incr(attempts_key)
-            await self.redis.expire(attempts_key, _OTP_TTL_SECONDS)
+            await self.redis.expire(attempts_key, settings.otp_expiry_seconds)
             raise unauthorized("Invalid or expired OTP")
 
         await self.redis.delete(f"otp:{mobile}")

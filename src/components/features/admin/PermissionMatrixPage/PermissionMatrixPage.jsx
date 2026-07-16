@@ -14,7 +14,9 @@
  *     Cells = can this role open this module at all?
  *     Agronomist (Field Rep) is the default/base role shown first.
  *
- * Both tabs persist to localStorage via their respective contexts.
+ * Both tabs persist to the backend: Tab 1 via permissionService.js
+ * (role_permissions table), Tab 2 via ModuleAccessContext (form_templates
+ * .module_access column) — no localStorage involved.
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';

@@ -68,6 +68,30 @@ function getCsrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 }
 
+// ── Error message extraction ────────────────────────────────────────────
+// FastAPI error bodies are JSON: { "detail": "..." } for a plain message,
+// or { "detail": [{ "msg": "...", ... }, ...] } for 422 validation errors.
+// Parse that shape into clean, human-readable text instead of surfacing the
+// raw JSON (or a stack trace) to the user.
+async function extractErrorMessage(response) {
+  const raw = await response.text().catch(() => '');
+  if (!raw) return `Request failed (${response.status})`;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return raw; // not JSON — a plain-text error body, show as-is
+  }
+
+  const { detail } = data;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d.msg ?? JSON.stringify(d)).join('; ');
+  }
+  return `Request failed (${response.status})`;
+}
+
 // ── Core fetch wrapper ────────────────────────────────────────────────
 
 /**
@@ -110,8 +134,7 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new ApiError(response.status, message || `Request failed (${response.status})`);
+    throw new ApiError(response.status, await extractErrorMessage(response));
   }
 
   // 204 No Content

@@ -81,14 +81,20 @@ function normalizeFarmer(f) {
     // Review workflow
     reviewStatus:    f.review_status    ?? 'pending_review',
     rejectionReason: f.rejection_reason ?? null,
+    // 'manual' | 'bulk_import' — set server-side, never client-provided
+    registrationSource: f.registration_source ?? 'manual',
     // Audit trail
     registeredBy:    f.rep_name         ?? '—',
     registrationDate: f.created_at
       ? new Date(f.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
       : '—',
-    surveyDate:      f.survey_date   ?? '—',
+    surveyDate: f.survey_date
+      ? new Date(f.survey_date).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+      : '—',
     approvedBy:      '—',
-    approvedDate:    f.approved_date ?? '—',
+    approvedDate: f.approved_date
+      ? new Date(f.approved_date).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+      : '—',
     // Sensitive masked fields
     aadhaar:         f.aadhaar_masked       ?? '—',
     bankAccount:     f.bank_account_masked  ?? '—',
@@ -255,8 +261,13 @@ export async function uploadFarmerPhotos(farmerId, photos) {
   });
 
   if (!res.ok) {
-    const msg = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(msg || `Photo upload failed (${res.status})`);
+    const raw = await res.text().catch(() => '');
+    let msg = `Photo upload failed (${res.status})`;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.detail === 'string') msg = parsed.detail;
+    } catch { /* not JSON — fall back to the generic message */ }
+    throw new Error(msg);
   }
   return res.json();
 }

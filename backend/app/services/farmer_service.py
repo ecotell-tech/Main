@@ -42,6 +42,7 @@ _SUMMARY_COLS = [
     Farmer.last_visit_date, Farmer.next_visit_date, Farmer.avatar_gradient,
     Farmer.created_at,
     Farmer.review_status, Farmer.rejection_reason, Farmer.registered_by_user_id,
+    Farmer.registration_source,
 ]
 
 _GEO_COLS = [
@@ -70,6 +71,13 @@ class FarmerRepository(BaseRepository[Farmer]):
         return (
             await self.db.execute(
                 self._base_q().where(Farmer.mobile == mobile)
+            )
+        ).scalar_one_or_none()
+
+    async def get_by_farmer_code(self, farmer_code: str) -> Optional[Farmer]:
+        return (
+            await self.db.execute(
+                self._base_q().where(Farmer.farmer_code == farmer_code)
             )
         ).scalar_one_or_none()
 
@@ -292,12 +300,19 @@ class FarmerService:
         payload: FarmerCreate,
         registered_by_user_id: int,
         is_draft: bool = False,
+        source: str = "manual",
     ) -> FarmerDetail:
         db = self.repo.db
 
+        # Normalize: blank/whitespace-only farmer_code means "not provided" —
+        # farmer ID stays optional, auto-assigned below if omitted.
+        custom_code = (payload.farmer_code or "").strip() or None
+
         try:
             if await self.repo.get_by_mobile(payload.mobile):
-                raise conflict("A farmer with this mobile number already exists")
+                raise conflict("This mobile number is already registered to another farmer")
+            if custom_code and await self.repo.get_by_farmer_code(custom_code):
+                raise conflict("This Farmer ID is already in use — leave it blank to auto-assign one, or choose a different ID")
         except HTTPException:
             raise
         except Exception as exc:
@@ -314,7 +329,7 @@ class FarmerService:
             parts.append(payload.last_name)
 
         data = payload.model_dump(exclude_none=True)
-        custom_code = data.pop("farmer_code", None)
+        data.pop("farmer_code", None)
         aadhaar = data.pop("aadhaar", None)
         bank_account = data.pop("bank_account", None)
         data.update(
@@ -322,6 +337,7 @@ class FarmerService:
             farmer_code="TMP-0000",
             registered_by_user_id=registered_by_user_id,
             is_draft=is_draft,
+            registration_source=source,
         )
         if aadhaar:
             data["aadhaar_encrypted"] = encrypt_value(aadhaar)
@@ -330,7 +346,7 @@ class FarmerService:
 
         try:
             farmer = await self.repo.create(**data)
-            farmer.farmer_code = custom_code.strip() if custom_code else f"FMR-{farmer.id:04d}"
+            farmer.farmer_code = custom_code or f"FMR-{farmer.id:04d}"
             await self.repo.save(farmer)
         except HTTPException:
             raise
@@ -339,6 +355,9 @@ class FarmerService:
                 await db.rollback()
             except Exception:
                 pass
+            if "uq_farmers_farmer_code" in str(exc) or "uq_farmers_mobile" in str(exc):
+                field = "Farmer ID" if "farmer_code" in str(exc) else "mobile number"
+                raise conflict(f"This {field} is already in use") from exc
             raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
         return await self.get_or_404(farmer.id)
@@ -403,9 +422,24 @@ class FarmerService:
         if bank_account:
             data["bank_account_encrypted"] = encrypt_value(bank_account)
 
+        # Blank/whitespace-only farmer_code means "leave it unchanged" — never
+        # allow clearing it to empty via update.
+        if "farmer_code" in data:
+            code = (data["farmer_code"] or "").strip()
+            if code:
+                data["farmer_code"] = code
+            else:
+                data.pop("farmer_code")
+
         if data:
             try:
                 farmer = await self.repo.get_or_404(farmer_id, "Farmer")
+
+                if "farmer_code" in data and data["farmer_code"] != farmer.farmer_code:
+                    existing = await self.repo.get_by_farmer_code(data["farmer_code"])
+                    if existing and existing.id != farmer_id:
+                        raise conflict("This Farmer ID is already in use by another farmer")
+
                 # Compute adoption score from merged (current DB state + incoming update).
                 # Include it in the same write so no second round-trip is needed.
                 data['adoption_score'] = _compute_adoption_score(
@@ -423,6 +457,8 @@ class FarmerService:
                     await db.rollback()
                 except Exception:
                     pass
+                if "uq_farmers_farmer_code" in str(exc):
+                    raise conflict("This Farmer ID is already in use by another farmer") from exc
                 raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
         if crop_names is not None:
@@ -623,7 +659,7 @@ class FarmerService:
                     survey_date=row.survey_date,
                 )
 
-                farmer = await self.create(payload, registered_by_user_id, is_draft=False)
+                farmer = await self.create(payload, registered_by_user_id, is_draft=False, source="bulk_import")
 
                 if row.primary_crop:
                     try:

@@ -93,6 +93,12 @@ class Farmer(SoftDeleteMixin, Base):
     submission_notes      = Column(Text)
     avatar_gradient       = Column(String(120))
     is_draft              = Column(Boolean, nullable=False, server_default='0')
+    # How this record was created — set by the server (FarmerService.create's
+    # `source` param), never accepted from the request body.
+    registration_source   = Column(
+        Enum("manual", "bulk_import"),
+        nullable=False, server_default="manual",
+    )
 
     # ── Review workflow ─────────────────────────────────────────
     review_status = Column(

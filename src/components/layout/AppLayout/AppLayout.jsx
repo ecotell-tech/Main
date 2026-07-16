@@ -41,9 +41,12 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-background">
       <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
 
-      {/* Offset main content past the fixed sidebar on lg+ */}
+      {/* Offset main content past the fixed sidebar on lg+.
+          min-w-0 lets this flex column shrink below its content's intrinsic
+          width so oversized children (wide tables, grids) scroll internally
+          via their own overflow-x-auto instead of ballooning the whole page. */}
       <div
-        className="flex-1 flex flex-col min-h-screen"
+        className="flex-1 flex flex-col min-h-screen min-w-0 overflow-x-hidden"
         style={{ marginLeft: 'var(--footer-left)' }}
       >
         <AppHeader

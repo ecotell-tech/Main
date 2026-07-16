@@ -196,6 +196,7 @@ class FarmerSummary(BaseModel):
     rejection_reason:       Optional[str] = None
     registered_by_user_id:  Optional[int] = None
     rep_name:               Optional[str] = None
+    registration_source:    str = "manual"
 
 
 class FarmerDetail(FarmerSummary):

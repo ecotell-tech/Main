@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, status
 from app.dependencies.auth import get_current_user
 from app.models.auth import User
 from app.schemas.auth import (
-    ChangePasswordRequest, LoginRequest, OtpRequest, OtpVerifyRequest, TokenResponse,
+    ChangePasswordRequest, LoginRequest, OtpRequest, OtpSentResponse,
+    OtpVerifyRequest, TokenResponse,
 )
 from app.services.auth_service import AuthService, get_auth_service
 
@@ -18,15 +19,18 @@ async def login(
     return await service.login(payload.mobile, payload.password)
 
 
-@router.post("/send-otp", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/send-otp", response_model=OtpSentResponse)
 async def send_otp(
     payload: OtpRequest,
     service: AuthService = Depends(get_auth_service),
 ):
-    """Generate and store a one-time OTP for this mobile number (5 min TTL).
-    No SMS gateway send integration exists yet — the code is logged
-    server-side for developer/tester visibility (see AuthService.request_otp)."""
-    await service.request_otp(payload.mobile)
+    """Generate and store a one-time OTP for this mobile number. No SMS
+    gateway send integration exists yet — the code is logged server-side
+    for developer/tester visibility (see AuthService.request_otp).
+    Returns the real TTL so the frontend countdown never drifts from what
+    the server actually enforces."""
+    expires_in = await service.request_otp(payload.mobile)
+    return OtpSentResponse(expires_in=expires_in)
 
 
 @router.post("/verify-otp", response_model=TokenResponse)

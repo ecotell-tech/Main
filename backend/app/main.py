@@ -66,6 +66,50 @@ _ADD_MANAGER_USER_ID = text(
     "COMMENT 'The managing user (manager/supervisor) this account reports to'"
 )
 
+# Migration 002 — postal PIN code per village
+_ADD_VILLAGE_PINCODE = text(
+    "ALTER TABLE villages "
+    "ADD COLUMN pin_code VARCHAR(10) NULL COMMENT 'Postal PIN code for this village'"
+)
+_ADD_VILLAGE_PINCODE_INDEX = text(
+    "ALTER TABLE villages ADD INDEX idx_villages_pin_code (pin_code)"
+)
+
+# Migration 011 — SMS gateway config (single global row)
+_CREATE_SMS_GATEWAY_CONFIGS = text("""
+    CREATE TABLE IF NOT EXISTS sms_gateway_configs (
+        id                  BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+        provider_name       VARCHAR(100)     NOT NULL  DEFAULT '',
+        is_active           TINYINT(1)       NOT NULL  DEFAULT 0,
+        http_method         VARCHAR(10)      NOT NULL  DEFAULT 'POST',
+        request_url         VARCHAR(500)     NOT NULL  DEFAULT '',
+        headers_json        JSON                 NULL,
+        body_template       TEXT                 NULL,
+        sender_id           VARCHAR(30)          NULL,
+        api_key             VARCHAR(255)         NULL,
+        api_secret          VARCHAR(255)         NULL,
+        updated_by_user_id  BIGINT UNSIGNED      NULL,
+        created_at          TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP,
+        updated_at          TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_sgc_updated_by
+            FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB
+""")
+
+# Migration 012 — Crop Master activate/deactivate
+_ADD_CROP_IS_ACTIVE = text(
+    "ALTER TABLE crops ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1"
+)
+
+# Migration 013 — encrypted farmer PII columns
+_ADD_AADHAAR_ENCRYPTED = text(
+    "ALTER TABLE farmers ADD COLUMN aadhaar_encrypted TEXT NULL"
+)
+_ADD_BANK_ACCOUNT_ENCRYPTED = text(
+    "ALTER TABLE farmers ADD COLUMN bank_account_encrypted TEXT NULL"
+)
+
 # Migration 005 — custom_fields JSON column on farmers
 _ADD_CUSTOM_FIELDS = text(
     "ALTER TABLE farmers "
@@ -107,6 +151,14 @@ _ADD_TERRITORY_COLUMN = text(
     "COMMENT 'State/district/taluka/village IDs selected by this team lead'"
 )
 
+# Migration 015 — track manual vs bulk-import registration source
+_ADD_REGISTRATION_SOURCE = text(
+    "ALTER TABLE farmers "
+    "ADD COLUMN registration_source ENUM('manual','bulk_import') "
+    "NOT NULL DEFAULT 'manual' "
+    "COMMENT 'How this record was created — set by the server, never client-provided'"
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -118,6 +170,8 @@ async def lifespan(app: FastAPI):
     # for databases that predate the current schema.sql / migration chain.
     for stmt, label in [
         (_CREATE_FARMER_PHOTOS,        "farmer_photos table"),
+        (_ADD_VILLAGE_PINCODE,         "villages.pin_code column"),
+        (_ADD_VILLAGE_PINCODE_INDEX,   "villages.pin_code index"),
         (_ADD_MANAGER_USER_ID,         "users.manager_user_id column"),
         (_ADD_IS_DRAFT,                "farmers.is_draft column"),
         (_ADD_REVIEW_STATUS,           "farmers.review_status column"),
@@ -128,6 +182,11 @@ async def lifespan(app: FastAPI):
         (_ADD_TERRITORY_COLUMN,        "form_templates.territory column"),
         (_ADD_USER_TERRITORY,          "users.territory column"),
         (_ADD_USER_DISTRICT,           "users.district column"),
+        (_CREATE_SMS_GATEWAY_CONFIGS,  "sms_gateway_configs table"),
+        (_ADD_CROP_IS_ACTIVE,          "crops.is_active column"),
+        (_ADD_AADHAAR_ENCRYPTED,       "farmers.aadhaar_encrypted column"),
+        (_ADD_BANK_ACCOUNT_ENCRYPTED,  "farmers.bank_account_encrypted column"),
+        (_ADD_REGISTRATION_SOURCE,     "farmers.registration_source column"),
     ]:
         try:
             async with engine.begin() as conn:

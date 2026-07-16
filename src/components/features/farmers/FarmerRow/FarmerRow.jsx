@@ -36,7 +36,15 @@ export default function FarmerRow({ farmer, role, onLogVisit, onReject }) {
           <Avatar initials={farmer.initials} gradient={farmer.avatarGradient} size="sm" />
           <div>
             <div className="text-xs font-semibold text-foreground">{farmer.name}</div>
-            <div className="text-[0.68rem] text-muted-foreground">ID: {farmer.farmer_code ?? farmer.id}</div>
+            <div className="text-[0.68rem] text-muted-foreground flex items-center gap-1">
+              ID: {farmer.farmer_code ?? farmer.id}
+              {farmer.registrationSource === 'bulk_import' && (
+                <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-blue-50 text-blue-600 text-[0.58rem] font-semibold" title="Imported via spreadsheet upload">
+                  <i className="fas fa-file-import text-[0.5rem]" />
+                  Imported
+                </span>
+              )}
+            </div>
             {/* Review status indicator */}
             {isRejected && (
               <div className="flex items-center gap-1 mt-0.5">

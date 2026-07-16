@@ -103,7 +103,7 @@ export async function signIn(mobile, password) {
  * server-side (visible via `docker logs backend`) instead of texting it.
  *
  * @param {string} mobile
- * @returns {Promise<void>}
+ * @returns {Promise<{ expiresIn: number }>} Real server-side OTP TTL in seconds.
  */
 export async function sendOtp(mobile) {
   const BASE = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -122,6 +122,9 @@ export async function sendOtp(mobile) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.detail ?? 'Failed to send OTP.');
   }
+
+  const { expires_in } = await response.json();
+  return { expiresIn: expires_in };
 }
 
 /**

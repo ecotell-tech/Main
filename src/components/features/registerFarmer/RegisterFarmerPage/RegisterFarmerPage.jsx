@@ -1375,10 +1375,7 @@ export default function RegisterFarmerPage() {
       setStep(nextStep);
       saveSession(nextStep, form, activeDraftId);
     } catch (err) {
-      // err.message may be a raw JSON string from the backend — extract the detail field if present
-      let msg = err?.message || 'Failed to save. Please try again.';
-      try { const parsed = JSON.parse(msg); if (parsed?.detail) msg = parsed.detail; } catch { /* not JSON */ }
-      showToast(msg, 'error');
+      showToast(err?.message || 'Failed to save. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -1438,8 +1435,7 @@ export default function RegisterFarmerPage() {
           }
         } catch (photoErr) {
           // Non-fatal — registration succeeds even if photo upload fails
-          let msg = photoErr?.message || '';
-          try { const p = JSON.parse(msg); if (p?.detail) msg = p.detail; } catch { /* not JSON */ }
+          const msg = photoErr?.message || '';
           showToast(`Photos could not be saved${msg ? ` (${msg})` : ''}. You can upload them from the farmer profile.`, 'warning');
         }
       }

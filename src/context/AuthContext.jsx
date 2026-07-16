@@ -118,8 +118,8 @@ export function AuthProvider({ children }) {
   /** Request an OTP be generated for this mobile number (second-factor login). */
   const sendOtp = useCallback(async (mobile) => {
     try {
-      await authService.sendOtp(mobile);
-      return { success: true };
+      const { expiresIn } = await authService.sendOtp(mobile);
+      return { success: true, expiresIn };
     } catch (err) {
       return { success: false, error: err.message ?? 'Failed to send OTP.' };
     }

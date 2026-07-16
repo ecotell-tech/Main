@@ -16,6 +16,10 @@ class OtpVerifyRequest(BaseModel):
     otp:    str
 
 
+class OtpSentResponse(BaseModel):
+    expires_in: int   # seconds — the real server-side OTP TTL
+
+
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

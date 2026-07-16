@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Production deploy: pull latest code, rebuild, restart the prod stack.
+# Production deploy: pull latest code, rebuild, migrate the DB, restart the
+# prod stack. One command does everything needed for a deploy.
 # Usage: ./deploy.sh   (run from the repo root on the VPS)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -23,11 +24,73 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 1
 fi
 
+echo "==> Checking backend/.env.production"
+backend_required_vars=(DATABASE_URL REDIS_URL JWT_SECRET PII_ENCRYPTION_KEY CORS_ORIGINS)
+backend_missing=()
+for var in "${backend_required_vars[@]}"; do
+  if ! grep -qE "^${var}=.+" backend/.env.production 2>/dev/null; then
+    backend_missing+=("$var")
+  fi
+done
+if [ "${#backend_missing[@]}" -gt 0 ]; then
+  echo "ERROR: backend/.env.production is missing or has empty values for: ${backend_missing[*]}"
+  echo "Set these before deploying (see backend/.env.production.example)."
+  echo "PII_ENCRYPTION_KEY: python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+  echo "JWT_SECRET:         openssl rand -hex 32"
+  exit 1
+fi
+
 echo "==> Building images"
 $COMPOSE build
 
-echo "==> Starting containers"
+echo "==> Starting database + redis first"
+$COMPOSE up -d db redis
+
+echo "==> Waiting for database to be healthy"
+for i in $(seq 1 30); do
+  status=$($COMPOSE ps db --format '{{.Health}}' 2>/dev/null || true)
+  [ "$status" = "healthy" ] && break
+  sleep 2
+done
+if [ "$status" != "healthy" ]; then
+  echo "ERROR: database did not become healthy in time — check '$COMPOSE logs db'"
+  exit 1
+fi
+
+echo "==> Starting backend + caddy"
 $COMPOSE up -d
+
+echo "==> Waiting for backend container to be running"
+for i in $(seq 1 30); do
+  running=$($COMPOSE ps backend --format '{{.State}}' 2>/dev/null || true)
+  [ "$running" = "running" ] && break
+  sleep 2
+done
+
+echo "==> Running database migrations"
+# The DB is originally created by database/schema.sql (via docker-entrypoint-
+# initdb.d on first boot), not by replaying migration 001 — so on a database
+# that has never been touched by Alembic, baseline at 001 before upgrading,
+# instead of trying to re-run 001's CREATE TABLE statements against tables
+# that already exist.
+if $COMPOSE exec -T backend alembic current 2>/dev/null | grep -q '.'; then
+  echo "    Alembic already initialized on this database."
+else
+  echo "    No Alembic revision stamped yet — baselining at 001 (schema.sql already created these tables)."
+  $COMPOSE exec -T backend alembic stamp 001 || echo "WARNING: could not stamp baseline revision — check '$COMPOSE logs backend'"
+fi
+
+if $COMPOSE exec -T backend alembic upgrade head; then
+  echo "    Migrations applied successfully."
+else
+  echo "WARNING: 'alembic upgrade head' failed. The backend's built-in startup"
+  echo "         fallback (app/main.py) will still attempt to self-heal missing"
+  echo "         columns/tables on every restart, but check 'alembic history'"
+  echo "         and '$COMPOSE logs backend' to fix the underlying migration."
+fi
+
+echo "==> Restarting backend (picks up any schema the migration step just applied)"
+$COMPOSE restart backend
 
 echo "==> Container status"
 $COMPOSE ps
