@@ -201,7 +201,7 @@ export default function LoginPage() {
             <p className="mt-0.5">
               Developed by{' '}
               <a
-                href="https://Ecotell.com"
+                href="https://Ecotell.in"
                 className="text-primary font-semibold hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"

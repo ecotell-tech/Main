@@ -17,7 +17,7 @@ export const APP_CONFIG = Object.freeze({
     tagline:     'Kisan Kalyan Mission',
     description: 'Farmers Welfare & Social Security',
     version:     'v1.1',
-    developer:   'Ecotell.com',
+    developer:   'Ecotell.in',
     year:        2026,
     logoSrc:     '/assets/images/logo.svg',
     /** Feature highlights shown on the login brand panel. */
