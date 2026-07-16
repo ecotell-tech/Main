@@ -19,6 +19,7 @@ from app.models.auth import User
 from app.models.farmer import Farmer
 from app.models.farmer_photo import FarmerPhoto
 from app.models.geography import District, State, Taluka, Village
+from app.utils.encryption import decrypt_value, encrypt_value, mask_aadhaar, mask_bank_account
 from app.schemas.farmer import (
     BulkFarmerCreate,
     BulkFarmerRow,
@@ -210,7 +211,7 @@ class FarmerService:
         )
         return [FarmerSummary.model_validate(r) for r in rows], total
 
-    async def get_or_404(self, farmer_id: int) -> FarmerDetail:
+    async def get_or_404(self, farmer_id: int, viewer: Optional[User] = None) -> FarmerDetail:
         db = self.repo.db
 
         # ── Main JOIN query ──────────────────────────────────────────────
@@ -268,6 +269,18 @@ class FarmerService:
         detail = FarmerDetail.model_validate(row)
         detail.farm_photos = [FarmerPhotoOut.model_validate(p) for p in photos]
         detail.crops = list(crop_names)
+
+        # Leadership sees real Aadhaar/bank account; everyone else gets a masked string.
+        is_leadership = viewer is not None and viewer.role is not None and viewer.role.name == "manager"
+        aadhaar_raw = decrypt_value(row.get("aadhaar_encrypted"))
+        bank_raw = decrypt_value(row.get("bank_account_encrypted"))
+        detail.aadhaar_masked = (
+            (aadhaar_raw if is_leadership else mask_aadhaar(aadhaar_raw)) if aadhaar_raw else None
+        )
+        detail.bank_account_masked = (
+            (bank_raw if is_leadership else mask_bank_account(bank_raw)) if bank_raw else None
+        )
+
         return detail
 
     async def check_mobile(self, mobile: str) -> dict:
@@ -302,12 +315,18 @@ class FarmerService:
 
         data = payload.model_dump(exclude_none=True)
         custom_code = data.pop("farmer_code", None)
+        aadhaar = data.pop("aadhaar", None)
+        bank_account = data.pop("bank_account", None)
         data.update(
             name=" ".join(parts),
             farmer_code="TMP-0000",
             registered_by_user_id=registered_by_user_id,
             is_draft=is_draft,
         )
+        if aadhaar:
+            data["aadhaar_encrypted"] = encrypt_value(aadhaar)
+        if bank_account:
+            data["bank_account_encrypted"] = encrypt_value(bank_account)
 
         try:
             farmer = await self.repo.create(**data)
@@ -377,6 +396,12 @@ class FarmerService:
         db = self.repo.db
         data = payload.model_dump(exclude_none=True)
         crop_names = data.pop("crop_names", None)
+        aadhaar = data.pop("aadhaar", None)
+        bank_account = data.pop("bank_account", None)
+        if aadhaar:
+            data["aadhaar_encrypted"] = encrypt_value(aadhaar)
+        if bank_account:
+            data["bank_account_encrypted"] = encrypt_value(bank_account)
 
         if data:
             try:
@@ -443,6 +468,80 @@ class FarmerService:
             raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
         return await self.get_or_404(farmer_id)
+
+    async def get_active_assignments(self) -> list:
+        """Current active farmer→rep task assignments (farmer_user_assignments)."""
+        from app.models.associations import FarmerUserAssignment
+        from app.schemas.farmer_assignment import FarmerAssignmentOut
+
+        rows = (
+            await self.repo.db.execute(
+                select(
+                    FarmerUserAssignment.farmer_id,
+                    FarmerUserAssignment.user_id,
+                    User.name.label("user_name"),
+                    FarmerUserAssignment.due_date,
+                )
+                .join(User, User.id == FarmerUserAssignment.user_id)
+                .where(FarmerUserAssignment.is_active == 1)
+            )
+        ).all()
+        return [FarmerAssignmentOut.model_validate(dict(r._mapping)) for r in rows]
+
+    async def bulk_assign(
+        self, farmer_ids: list[int], user_id: int, due_date, assigned_by_user_id: int,
+    ) -> list:
+        """Assign each farmer to `user_id`, deactivating any prior active assignment."""
+        from app.models.associations import FarmerUserAssignment
+        from app.schemas.farmer_assignment import FarmerAssignmentOut
+
+        db = self.repo.db
+
+        assignee = await db.get(User, user_id)
+        if assignee is None:
+            raise not_found("Representative not found")
+
+        for farmer_id in farmer_ids:
+            await self.repo.get_or_404(farmer_id, "Farmer")
+
+            existing_rows = (
+                await db.execute(
+                    select(FarmerUserAssignment)
+                    .where(
+                        FarmerUserAssignment.farmer_id == farmer_id,
+                        FarmerUserAssignment.is_active == 1,
+                    )
+                )
+            ).scalars().all()
+            for row in existing_rows:
+                row.is_active = 0
+
+            same_pair = (
+                await db.execute(
+                    select(FarmerUserAssignment).where(
+                        FarmerUserAssignment.farmer_id == farmer_id,
+                        FarmerUserAssignment.user_id == user_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if same_pair:
+                same_pair.is_active = 1
+                same_pair.due_date = due_date
+                same_pair.assigned_by_user_id = assigned_by_user_id
+            else:
+                db.add(FarmerUserAssignment(
+                    farmer_id=farmer_id,
+                    user_id=user_id,
+                    assigned_by_user_id=assigned_by_user_id,
+                    due_date=due_date,
+                    is_active=1,
+                ))
+
+        await db.commit()
+        return [
+            FarmerAssignmentOut(farmer_id=fid, user_id=user_id, user_name=assignee.name, due_date=due_date)
+            for fid in farmer_ids
+        ]
 
     async def soft_delete(self, farmer_id: int) -> None:
         farmer = await self.repo.get_or_404(farmer_id, "Farmer")

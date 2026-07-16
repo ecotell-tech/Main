@@ -1,6 +1,6 @@
 from sqlalchemy import (
     BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey,
-    JSON, Numeric, SmallInteger, String, Text,
+    Integer, JSON, Numeric, SmallInteger, String, Text,
 )
 
 from app.database import Base
@@ -27,11 +27,15 @@ class Farmer(SoftDeleteMixin, Base):
         Enum("None", "Primary", "Secondary", "Graduate", "Post Graduate"),
         nullable=False, default="None",
     )
-    aadhaar_masked      = Column(String(20))
-    bank_account_masked = Column(String(25))
+    aadhaar_masked      = Column(String(20))   # legacy/unused — kept for backward compat
+    bank_account_masked = Column(String(25))   # legacy/unused — kept for backward compat
+    # Fernet-encrypted values — decrypted only for Leadership, masked for everyone else
+    # (see app/utils/encryption.py, FarmerService.get_or_404)
+    aadhaar_encrypted      = Column(Text)
+    bank_account_encrypted = Column(Text)
 
     # ── Location ────────────────────────────────────────────────
-    village_id    = Column(BigInteger, ForeignKey("villages.id",  ondelete="SET NULL"))
+    village_id    = Column(Integer, ForeignKey("villages.id",  ondelete="SET NULL"))
     pin_code      = Column(String(10))
     nearest_mandi = Column(String(120))
     gps_lat       = Column(Numeric(10, 6))

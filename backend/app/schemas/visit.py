@@ -42,6 +42,7 @@ class VisitSummary(BaseModel):
     visited_date:   Optional[date] = None
     location:       Optional[str]  = None
     created_at:     datetime
+    conducted_by_user_id: Optional[int] = None
 
 
 class VisitDetail(VisitSummary):

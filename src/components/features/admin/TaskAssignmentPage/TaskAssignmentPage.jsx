@@ -2,23 +2,56 @@
  * TaskAssignmentPage — Organic Farming Manager
  * Screen 34: Batch-assign farmers to representatives with workload view
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Badge   from '@common/Badge/Badge';
 import Button  from '@common/Button/Button';
 import { useToast } from '@hooks/useToast';
-import MOCK_FARMERS from '@data/mock/farmers.json';
-import MOCK_REPS    from '@data/mock/representatives.json';
+import { getFarmers, getFarmerAssignments, assignFarmersToRep } from '@services/farmerService';
+import { getUsers } from '@services/userService';
+import { ApiError } from '@services/api';
 
 const BAND = (s) =>
   s >= 70 ? { label: 'High',   variant: 'success', color: '#16a34a' }
 : s >= 40 ? { label: 'Medium', variant: 'warning', color: '#d97706' }
 :           { label: 'Low',    variant: 'danger',  color: '#ef4444' };
 
-const DISTRICTS = [...new Set(MOCK_FARMERS.map(f => f.district))].sort();
-const CROPS     = [...new Set(MOCK_FARMERS.map(f => f.crop))].sort();
-
 export default function TaskAssignmentPage() {
   const { showToast } = useToast();
+
+  const [farmers,     setFarmers]     = useState([]);
+  const [reps,        setReps]        = useState([]);
+  const [assignments, setAssignments] = useState([]); // [{farmerId, userId, userName, dueDate}]
+  const [loading,     setLoading]     = useState(true);
+  const [assigning,   setAssigning]   = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [farmersRes, users, assignmentsRes] = await Promise.all([
+          getFarmers({ limit: 500 }),
+          getUsers(),
+          getFarmerAssignments(),
+        ]);
+        if (cancelled) return;
+        setFarmers(farmersRes.farmers);
+        setReps(users.filter(u => u.role === 'agronomist'));
+        setAssignments(assignmentsRes);
+      } catch {
+        if (!cancelled) showToast('Failed to load task assignment data.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const assignmentByFarmerId = useMemo(() => {
+    const map = new Map();
+    assignments.forEach(a => map.set(a.farmerId, a));
+    return map;
+  }, [assignments]);
 
   /* Farmer list + selection */
   const [selected,     setSelected]     = useState(new Set());
@@ -32,22 +65,25 @@ export default function TaskAssignmentPage() {
   const [fSearch,   setFSearch]   = useState('');
   const [fUnassigned, setFUnassigned] = useState(false);
 
+  const DISTRICTS = useMemo(() => [...new Set(farmers.map(f => f.district))].filter(Boolean).sort(), [farmers]);
+  const CROPS     = useMemo(() => [...new Set(farmers.map(f => f.crop))].filter(Boolean).sort(), [farmers]);
+
   const filtered = useMemo(() => {
-    return MOCK_FARMERS.filter(f => {
+    return farmers.filter(f => {
       if (fDistrict !== 'all' && f.district !== fDistrict) return false;
       if (fCrop     !== 'all' && f.crop     !== fCrop)     return false;
       if (fBand !== 'all') {
         const b = BAND(f.adoptionScore).label.toLowerCase();
         if (b !== fBand) return false;
       }
-      if (fUnassigned && f.repId) return false;
+      if (fUnassigned && assignmentByFarmerId.has(f.id)) return false;
       if (fSearch) {
         const q = fSearch.toLowerCase();
-        return f.name.toLowerCase().includes(q) || f.village.toLowerCase().includes(q);
+        return f.name.toLowerCase().includes(q) || (f.village ?? '').toLowerCase().includes(q);
       }
       return true;
     });
-  }, [fDistrict, fCrop, fBand, fSearch, fUnassigned]);
+  }, [farmers, fDistrict, fCrop, fBand, fSearch, fUnassigned, assignmentByFarmerId]);
 
   function toggleSelect(id) {
     setSelected(prev => {
@@ -65,27 +101,53 @@ export default function TaskAssignmentPage() {
     }
   }
 
-  function handleAssign() {
+  async function handleAssign() {
     if (selected.size === 0) { showToast('Select at least one farmer.', 'error'); return; }
     if (!assignToRep)         { showToast('Select a representative.', 'error');   return; }
-    const rep = MOCK_REPS.find(r => r.id === assignToRep);
-    showToast(`${selected.size} farmer(s) assigned to ${rep?.name ?? 'rep'}${dueDate ? ` · Due ${dueDate}` : ''}.`, 'success');
-    setSelected(new Set());
-    setAssignToRep('');
-    setDueDate('');
+    const rep = reps.find(r => r.id === Number(assignToRep));
+
+    setAssigning(true);
+    try {
+      const farmerIds = [...selected];
+      await assignFarmersToRep(farmerIds, Number(assignToRep), dueDate || null);
+      setAssignments(prev => {
+        const kept = prev.filter(a => !farmerIds.includes(a.farmerId));
+        const added = farmerIds.map(farmerId => ({
+          farmerId, userId: Number(assignToRep), userName: rep?.name ?? 'Rep', dueDate: dueDate || null,
+        }));
+        return [...kept, ...added];
+      });
+      showToast(`${selected.size} farmer(s) assigned to ${rep?.name ?? 'rep'}${dueDate ? ` · Due ${dueDate}` : ''}.`, 'success');
+      setSelected(new Set());
+      setAssignToRep('');
+      setDueDate('');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to assign farmers. Please try again.';
+      showToast(message, 'error');
+    } finally {
+      setAssigning(false);
+    }
   }
 
   /* Workload per rep */
   const workload = useMemo(() => {
-    return MOCK_REPS.map(rep => {
-      const count = MOCK_FARMERS.filter(f => f.repId === rep.id).length;
+    return reps.map(rep => {
+      const count = assignments.filter(a => a.userId === rep.id).length;
       return { ...rep, count };
     }).sort((a, b) => b.count - a.count);
-  }, []);
+  }, [reps, assignments]);
   const maxLoad = Math.max(...workload.map(r => r.count), 1);
 
   const inputCls = 'h-8 px-3 text-xs rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
   const selectCls = 'h-8 pl-3 pr-7 text-xs rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring appearance-none';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+        <i className="fas fa-spinner fa-spin mr-2" /> Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -196,8 +258,8 @@ export default function TaskAssignmentPage() {
                         style={{ color: b.color, background: b.color + '15', borderColor: b.color + '40' }}>
                         {f.adoptionScore}
                       </div>
-                      {f.repName ? (
-                        <span className="text-[0.6rem] text-muted-foreground hidden sm:block">{f.repName.split(' ')[0]}</span>
+                      {assignmentByFarmerId.has(f.id) ? (
+                        <span className="text-[0.6rem] text-muted-foreground hidden sm:block">{assignmentByFarmerId.get(f.id).userName.split(' ')[0]}</span>
                       ) : (
                         <Badge variant="warning" className="text-[0.6rem]">Unassigned</Badge>
                       )}
@@ -223,8 +285,8 @@ export default function TaskAssignmentPage() {
                 <div className="relative">
                   <select value={assignToRep} onChange={e => setAssignToRep(e.target.value)} className={selectCls + ' w-full h-10'}>
                     <option value="">Select representative…</option>
-                    {MOCK_REPS.filter(r => r.status === 'active').map(r => (
-                      <option key={r.id} value={r.id}>{r.name} · {r.territory}</option>
+                    {reps.filter(r => r.status === 'active').map(r => (
+                      <option key={r.id} value={r.id}>{r.name}{r.territory ? ` · ${r.territory}` : ''}</option>
                     ))}
                   </select>
                   <i className="fas fa-chevron-down text-[0.55rem] text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -241,8 +303,10 @@ export default function TaskAssignmentPage() {
                     ? <><span className="font-bold text-foreground">{selected.size}</span> farmer(s) selected for assignment</>
                     : 'Select farmers from the list on the left'}
                 </div>
-                <Button variant="primary" className="w-full" onClick={handleAssign} disabled={selected.size === 0 || !assignToRep}>
-                  <i className="fas fa-user-plus mr-2" /> Assign {selected.size > 0 ? `${selected.size} Farmer${selected.size > 1 ? 's' : ''}` : ''}
+                <Button variant="primary" className="w-full" onClick={handleAssign} disabled={selected.size === 0 || !assignToRep || assigning}>
+                  {assigning
+                    ? <><i className="fas fa-spinner fa-spin mr-2" />Assigning…</>
+                    : <><i className="fas fa-user-plus mr-2" /> Assign {selected.size > 0 ? `${selected.size} Farmer${selected.size > 1 ? 's' : ''}` : ''}</>}
                 </Button>
               </div>
             </div>

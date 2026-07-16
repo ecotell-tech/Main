@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 1440  # 24 hours
 
+    # PII encryption (Aadhaar, bank account) — Fernet key
+    pii_encryption_key: str = ""
+
     # OTP
     otp_expiry_seconds: int = 300   # 5 minutes
     otp_max_attempts: int = 3

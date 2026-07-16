@@ -31,7 +31,13 @@ class PlanRepository(BaseRepository[ConsultingPlan]):
     ):
         q = (
             self._base_q()
-            .options(selectinload(ConsultingPlan.farmer))
+            .options(
+                selectinload(ConsultingPlan.farmer),
+                selectinload(ConsultingPlan.consultant),
+                selectinload(ConsultingPlan.components).selectinload(
+                    PlanComponentStatus.component_type
+                ),
+            )
             .order_by(ConsultingPlan.created_at.desc())
         )
         if user_id:
@@ -47,6 +53,7 @@ class PlanRepository(BaseRepository[ConsultingPlan]):
             self._base_q()
             .options(
                 selectinload(ConsultingPlan.farmer),
+                selectinload(ConsultingPlan.consultant),
                 selectinload(ConsultingPlan.components).selectinload(
                     PlanComponentStatus.component_type
                 ),
@@ -67,7 +74,7 @@ class PlanRepository(BaseRepository[ConsultingPlan]):
 class PlanService:
     def __init__(self, db: AsyncSession):
         self.db   = db
-        self.repo = PlanRepository(db, ConsultingPlan)
+        self.repo = PlanRepository(ConsultingPlan, db)
 
     async def list(
         self,
@@ -143,9 +150,32 @@ class PlanService:
         if status == "done":
             comp.completed_at = datetime.utcnow()
 
+        # Re-derive the plan's overall_status from the aggregate component states
+        # so the summary list stays consistent without a second round-trip.
+        plan = await self.repo.get(plan_id)
+        if plan is not None:
+            all_statuses = (
+                await self.db.execute(
+                    select(PlanComponentStatus.status).where(
+                        PlanComponentStatus.plan_id == plan_id
+                    )
+                )
+            ).scalars().all()
+            if all_statuses and all(s in ("done", "skipped") for s in all_statuses):
+                plan.overall_status = "completed"
+            elif any(s in ("active", "done") for s in all_statuses):
+                plan.overall_status = "in_progress"
+            else:
+                plan.overall_status = "plan_created"
+
         await self.db.commit()
-        await self.db.refresh(comp)
-        return comp
+
+        result = await self.db.execute(
+            select(PlanComponentStatus)
+            .options(selectinload(PlanComponentStatus.component_type))
+            .where(PlanComponentStatus.id == comp.id)
+        )
+        return result.scalar_one()
 
     async def soft_delete(self, plan_id: int) -> None:
         plan = await self.repo.get_or_404(plan_id, "Plan")

@@ -17,6 +17,10 @@ from app.services.visit_service import VisitService, get_visit_service
 
 router = APIRouter()
 
+# Field-facing roles only see visits they personally conducted; Team Lead /
+# Admin / Leadership see all (matches the same scoping used for GET /farmers).
+_SELF_SCOPED_ROLES = {"agronomist", "data_entry_operator"}
+
 
 def _summarise(visit) -> dict:
     return {
@@ -31,6 +35,7 @@ def _summarise(visit) -> dict:
         "visited_date":    visit.visited_date,
         "location":        visit.location,
         "created_at":      visit.created_at,
+        "conducted_by_user_id": visit.conducted_by_user_id,
     }
 
 
@@ -70,9 +75,10 @@ async def list_visits(
     current_user: User = Depends(require_permission("view_visits")),
     service: VisitService = Depends(get_visit_service),
 ):
+    own_only = current_user.role.name in _SELF_SCOPED_ROLES
     rows, total = await service.list(
         params,
-        user_id=current_user.id,
+        user_id=current_user.id if own_only else None,
         farmer_id=farmer_id,
         status=status,
         from_date=from_date,

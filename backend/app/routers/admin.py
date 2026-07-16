@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies.auth import get_current_user, require_permission
 from app.models.auth import Role, User
+from app.schemas.permission import PermissionMatrixOut, PermissionMatrixUpdate
+from app.schemas.scoring_factor import ScoringFactorOut, ScoringFactorsUpdate
 from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.services.permission_service import PermissionMatrixService, get_permission_service
+from app.services.scoring_factor_service import ScoringFactorService, get_scoring_factor_service
 from app.utils.security import hash_password
 
 router = APIRouter()
@@ -70,7 +74,7 @@ async def _next_employee_code(db: AsyncSession) -> str:
     return f"USR-{n:04d}"
 
 
-async def _base_user_query(db: AsyncSession, viewer: User):
+async def _base_user_query(db: AsyncSession, viewer: User, role_filter: str | None = None):
     """Return (query, role_name) — query is already scoped to what viewer may see."""
     role_name = viewer.role.name
 
@@ -108,6 +112,11 @@ async def _base_user_query(db: AsyncSession, viewer: User):
         )
     # manager (Leadership) sees all — no filter
 
+    if role_filter:
+        role_names = [r.strip() for r in role_filter.split(",") if r.strip()]
+        if role_names:
+            q = q.where(Role.name.in_(role_names))
+
     return q
 
 
@@ -115,10 +124,11 @@ async def _base_user_query(db: AsyncSession, viewer: User):
 
 @router.get("/users", response_model=list[UserOut])
 async def list_users(
+    role:         str | None    = None,
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(require_permission("manage_users")),
 ):
-    q = await _base_user_query(db, current_user)
+    q = await _base_user_query(db, current_user, role_filter=role)
     rows = (await db.execute(q)).mappings().all()
     return [_row_to_out(dict(r)) for r in rows]
 
@@ -187,6 +197,15 @@ async def update_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if body.mobile is not None and body.mobile != user.mobile:
+        existing = (
+            await db.execute(
+                select(User).where(User.mobile == body.mobile, User.deleted_at.is_(None))
+            )
+        ).scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=409, detail="Mobile number already registered")
+        user.mobile = body.mobile
     if body.name is not None:
         user.name = body.name.strip()
     if body.email is not None:
@@ -260,23 +279,37 @@ async def toggle_user_status(
     })
 
 
-# ── Stub endpoints (permissions, scoring) ─────────────────────
+# ── Permission matrix / scoring ────────────────────────────────
 
-@router.get("/permissions")
-async def get_permissions(current_user: User = Depends(require_permission("manage_roles"))):
-    return {"matrix": []}
-
-
-@router.put("/permissions")
-async def update_permissions(current_user: User = Depends(require_permission("manage_roles"))):
-    return {"message": "permissions updated"}
+@router.get("/permissions", response_model=PermissionMatrixOut)
+async def get_permissions(
+    service:      PermissionMatrixService = Depends(get_permission_service),
+    current_user: User                    = Depends(require_permission("manage_roles")),
+):
+    return await service.get_matrix()
 
 
-@router.get("/scoring")
-async def get_scoring(current_user: User = Depends(require_permission("edit_settings"))):
-    return {"factors": []}
+@router.put("/permissions", response_model=PermissionMatrixOut)
+async def update_permissions(
+    body:         PermissionMatrixUpdate,
+    service:      PermissionMatrixService = Depends(get_permission_service),
+    current_user: User                    = Depends(require_permission("manage_roles")),
+):
+    return await service.update_matrix(body.roles)
 
 
-@router.put("/scoring")
-async def update_scoring(current_user: User = Depends(require_permission("edit_settings"))):
-    return {"message": "scoring updated"}
+@router.get("/scoring", response_model=list[ScoringFactorOut])
+async def get_scoring(
+    service:      ScoringFactorService = Depends(get_scoring_factor_service),
+    current_user: User                 = Depends(require_permission("edit_settings")),
+):
+    return await service.get_factors()
+
+
+@router.put("/scoring", response_model=list[ScoringFactorOut])
+async def update_scoring(
+    body:         ScoringFactorsUpdate,
+    service:      ScoringFactorService = Depends(get_scoring_factor_service),
+    current_user: User                 = Depends(require_permission("edit_settings")),
+):
+    return await service.update_weights(body)

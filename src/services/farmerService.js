@@ -274,6 +274,34 @@ export async function rejectFarmer(farmerId, reason) {
   });
 }
 
+/**
+ * Fetch all currently-active farmer→representative task assignments.
+ * @returns {Promise<{farmerId: number, userId: number, userName: string, dueDate: string|null}[]>}
+ */
+export async function getFarmerAssignments() {
+  const data = await apiFetch('/farmers/assignments');
+  return data.map((a) => ({
+    farmerId: a.farmer_id,
+    userId:   a.user_id,
+    userName: a.user_name,
+    dueDate:  a.due_date,
+  }));
+}
+
+/**
+ * Bulk-assign farmers to a representative. Replaces any prior active assignment
+ * for each farmer (a farmer has at most one active assignee at a time).
+ * @param {number[]} farmerIds
+ * @param {number} userId
+ * @param {string|null} [dueDate] - ISO date string, e.g. '2026-08-01'
+ */
+export async function assignFarmersToRep(farmerIds, userId, dueDate = null) {
+  return apiFetch('/farmers/assignments', {
+    method: 'POST',
+    body: JSON.stringify({ farmer_ids: farmerIds, user_id: userId, due_date: dueDate || null }),
+  });
+}
+
 // ── Geography helpers ────────────────────────────────────────────────
 
 export async function getGeoStates() {

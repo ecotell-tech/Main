@@ -1,5 +1,5 @@
 """Pivot / association models that link farmers to master-data tables."""
-from sqlalchemy import BigInteger, Column, Date, ForeignKey, SmallInteger, Integer
+from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, SmallInteger, Integer, func
 from app.database import Base
 from app.models.base import TimestampMixin
 
@@ -10,6 +10,7 @@ class FarmerUserAssignment(TimestampMixin, Base):
     farmer_id           = Column(BigInteger, ForeignKey("farmers.id"), nullable=False)
     user_id             = Column(BigInteger, ForeignKey("users.id"),   nullable=False)
     assigned_by_user_id = Column(BigInteger, ForeignKey("users.id"))
+    assigned_at         = Column(DateTime, nullable=False, server_default=func.now())
     due_date            = Column(Date)
     is_active           = Column(SmallInteger, nullable=False, default=1)
 

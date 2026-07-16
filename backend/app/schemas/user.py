@@ -34,11 +34,22 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    mobile: Optional[str] = None
     email: Optional[str] = None
     manager_user_id: Optional[int] = None
     territory: Optional[str] = None
     district: Optional[str] = None
     status: Optional[str] = None
+
+    @field_validator("mobile")
+    @classmethod
+    def validate_mobile(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        digits = v.replace(" ", "").replace("-", "")
+        if not digits.isdigit() or len(digits) < 10:
+            raise ValueError("Mobile must be at least 10 digits")
+        return digits
 
 
 class UserOut(BaseModel):

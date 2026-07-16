@@ -595,7 +595,7 @@ const VALIDATOR_BY_ID = {
 const INIT = {
   farmerId: '',
   firstName: '', middleName: '', lastName: '',
-  mobile: '', altContact: '', gender: '', age: '', education: '', aadhaar: '', dob: '',
+  mobile: '', altContact: '', gender: '', age: '', education: '', aadhaar: '', bankAccount: '', dob: '',
   // Location — names for display + IDs for API
   state: '', stateId: null,
   district: '', districtId: null,
@@ -648,6 +648,7 @@ function farmerToForm(f) {
     age:             f.age != null ? String(f.age) : '',
     education:       EDU_REVERSE[f.education_level] || '',
     aadhaar:         '',   // never re-populate sensitive data
+    bankAccount:     '',   // never re-populate sensitive data
     dob:             f.dob || '',
     // Location IDs filled separately via getVillageContext
     stateId: null, state: '', districtId: null, district: '',
@@ -970,6 +971,7 @@ export default function RegisterFarmerPage() {
   const [errors, setErrors]    = useState({});
   const [resuming, setResuming]= useState(false);   // shows "Loading draft…" spinner
   const [showAadhaar, setShowAadhaar] = useState(false);
+  const [showBankAccount, setShowBankAccount] = useState(false);
   const [gpsLoading, setGpsLoading]   = useState(false);
   const [photos, setPhotos]    = useState({ farmer: null, land: null, well: null, soil: null, house: null });
   const [photoErrors, setPhotoErrors] = useState({});
@@ -1230,6 +1232,8 @@ export default function RegisterFarmerPage() {
     if (form.dob)               p.dob             = form.dob;
     if (form.age)               p.age             = parseInt(form.age);
     if (form.education)         p.education_level = EDU_MAP[form.education] || 'None';
+    if (form.aadhaar)           p.aadhaar         = form.aadhaar;
+    if (form.bankAccount)       p.bank_account    = form.bankAccount;
     return p;
   }
 
@@ -1574,6 +1578,28 @@ export default function RegisterFarmerPage() {
           <FormField label="Date of Birth" id="regDob" hint="Age is auto-calculated from DOB">
             <input className={inputCls} id="regDob" type="date"
               value={form.dob} onChange={(e) => handleDobChange(e.target.value)} />
+          </FormField>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <FormField label="Bank Account Number" id="regBankAccount" error={errors.bankAccount}
+            hint="Optional — only last 4 digits stored visibly">
+            <div className={iconInputWrap}>
+              <i className="fas fa-building-columns absolute left-3 text-muted-foreground text-xs pointer-events-none" aria-hidden="true" />
+              <input
+                className={`${ic('bankAccount')} pl-8 pr-9`}
+                id="regBankAccount"
+                type={showBankAccount ? 'text' : 'password'}
+                placeholder="Bank account number"
+                maxLength={20} inputMode="numeric" autoComplete="off"
+                value={form.bankAccount} onChange={(e) => set('bankAccount', e.target.value.replace(/\D/g, ''))}
+              />
+              <button type="button"
+                className="absolute right-2 text-muted-foreground hover:text-primary transition-colors"
+                onClick={() => setShowBankAccount((v) => !v)}>
+                <i className={`fas ${showBankAccount ? 'fa-eye' : 'fa-eye-slash'} text-xs`} aria-hidden="true" />
+              </button>
+            </div>
           </FormField>
         </div>
         <ExtendedFieldsSection stepId="identity" form={form} onSet={setCustomField} errors={errors} onError={setErrors} />
@@ -1954,6 +1980,7 @@ export default function RegisterFarmerPage() {
           ['Gender', form.gender], ['Age', form.age ? `${form.age} yrs` : ''],
           ['Education', form.education],
           ['Aadhaar', form.aadhaar ? `XXXX XXXX ${form.aadhaar.slice(-4)}` : ''],
+          ['Bank Account', form.bankAccount ? `xxxx${form.bankAccount.slice(-4)}` : ''],
           ['Date of Birth', form.dob],
         ]} />
         <ReviewBlock title="Location" icon="fas fa-map-marker-alt" rows={[

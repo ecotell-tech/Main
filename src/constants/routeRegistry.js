@@ -41,6 +41,7 @@ const ConsultingPage          = lazy(() => import('@features/admin/ConsultingPag
 const PermissionMatrixPage    = lazy(() => import('@features/admin/PermissionMatrixPage/PermissionMatrixPage'));
 const FormConfigPage          = lazy(() => import('@features/admin/FormConfigPage/FormConfigPage'));
 const TerritoryConfigPage     = lazy(() => import('@features/admin/TerritoryConfigPage/TerritoryConfigPage'));
+const SmsGatewayConfigPage    = lazy(() => import('@features/manager/SmsGatewayConfigPage/SmsGatewayConfigPage'));
 
 /**
  * @typedef {Object} RouteNavConfig
@@ -191,6 +192,18 @@ export const ROUTE_REGISTRY = [
       order:   1,
     },
   },
+  {
+    path:        'leadership/sms-gateway',
+    component:   SmsGatewayConfigPage,
+    roles:       [ROLES.MANAGER],
+    permissions: [PERMISSIONS.MANAGE_SMS_GATEWAY],
+    nav: {
+      label:   'SMS Gateway',
+      icon:    'fas fa-sms',
+      section: 'Leadership Tools',
+      order:   2,
+    },
+  },
 
   // ── Team Lead screens ───────────────────────────────────────────
   {
@@ -222,7 +235,7 @@ export const ROUTE_REGISTRY = [
   {
     path:        'admin/tasks',
     component:   TaskAssignmentPage,
-    roles:       [ROLES.ADMIN],
+    roles:       [ROLES.ADMIN, ROLES.MANAGER],
     permissions: [PERMISSIONS.MANAGE_USERS],
     nav: {
       label:   'Task Assignment',
@@ -234,7 +247,7 @@ export const ROUTE_REGISTRY = [
   {
     path:        'admin/territory',
     component:   TerritoryAssignmentPage,
-    roles:       [ROLES.ADMIN],
+    roles:       [ROLES.ADMIN, ROLES.MANAGER],
     permissions: [PERMISSIONS.MANAGE_USERS],
     nav: {
       label:   'Territory Assignment',
@@ -322,7 +335,7 @@ export const ROUTE_REGISTRY = [
     path:        'leadership/crops',
     component:   CropMasterPage,
     roles:       [ROLES.MANAGER],
-    permissions: [PERMISSIONS.VIEW_REPORTS],
+    permissions: [PERMISSIONS.MANAGE_MASTER_DATA],
     nav: {
       label:   'Crop Master',
       icon:    'fas fa-wheat-awn',

@@ -28,3 +28,11 @@ export async function getRepPerformance() {
 export async function getAllActivity(limit = 50) {
   return apiFetch(`/dashboard/all-activity?limit=${limit}`);
 }
+
+/**
+ * Backup run history. Returns [] until a real backup process exists to
+ * populate system_backups — no automation is wired up yet.
+ */
+export async function getSystemBackups(limit = 50) {
+  return apiFetch(`/admin/backups?limit=${limit}`);
+}

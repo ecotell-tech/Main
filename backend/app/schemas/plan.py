@@ -32,6 +32,7 @@ class ComponentStatusUpdate(BaseModel):
 
 class PlanCreate(BaseModel):
     farmer_id:          int
+    consultant_user_id: Optional[int]      = None
     notes:              Optional[str]       = None
     start_date:         Optional[date]      = None
     end_date:           Optional[date]      = None
@@ -39,6 +40,7 @@ class PlanCreate(BaseModel):
 
 
 class PlanUpdate(BaseModel):
+    consultant_user_id: Optional[int]  = None
     status:         Optional[str]  = None
     overall_status: Optional[str]  = None
     notes:          Optional[str]  = None
@@ -52,19 +54,20 @@ class PlanSummary(BaseModel):
     plan_code:      str
     farmer_id:      int
     farmer_name:    Optional[str] = None
+    consultant_user_id:   Optional[int] = None
+    consultant_name:      Optional[str] = None
     status:         str
     overall_status: str
     start_date:     Optional[date]     = None
     end_date:       Optional[date]     = None
     created_at:     datetime
+    components:     list[ComponentStatusOut] = []
 
 
 class PlanDetail(PlanSummary):
-    consultant_user_id:  Optional[int] = None
     created_by_user_id:  Optional[int] = None
     approved_by_user_id: Optional[int] = None
     notes:               Optional[str] = None
-    components:          list[ComponentStatusOut] = []
 
 
 class PlanListResponse(BaseModel):

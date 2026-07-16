@@ -75,6 +75,10 @@ export const PERMISSIONS = Object.freeze({
   MANAGE_USERS:       'manage_users',
   MANAGE_ROLES:       'manage_roles',
   VIEW_AUDIT_LOG:     'view_audit_log',
+
+  // Leadership-only system config
+  MANAGE_SMS_GATEWAY: 'manage_sms_gateway',
+  MANAGE_MASTER_DATA: 'manage_master_data',
 });
 
 /**
@@ -104,6 +108,7 @@ export const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.VIEW_VISITS,
     PERMISSIONS.CREATE_VISIT,
     PERMISSIONS.VIEW_PLANS,
+    PERMISSIONS.CREATE_PLAN,
     PERMISSIONS.APPROVE_PLAN,
     PERMISSIONS.VIEW_REPORTS,
     PERMISSIONS.EXPORT_REPORTS,

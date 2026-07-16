@@ -32,6 +32,7 @@ pip-wheel-metadata/
 .env.*
 !.env.production.example
 !backend/.env.production.example
+!.env.capacitor
 
 # Uploads & user-generated files
 uploads/

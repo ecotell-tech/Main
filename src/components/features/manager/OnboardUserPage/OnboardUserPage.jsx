@@ -16,13 +16,13 @@
  *   9. Documents & Notes         (Document checklist, Onboarding remarks)
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate }       from 'react-router-dom';
 import { useAuth }           from '@context/AuthContext';
 import { useToast }          from '@hooks/useToast';
 import Button                from '@common/Button/Button';
-import Badge                 from '@common/Badge/Badge';
-import SYSTEM_USERS          from '@data/mock/users.json';
+import { getUsers, createUser } from '@services/userService';
+import { ApiError }          from '@services/api';
 import STATE_DISTRICTS       from '@data/config/stateDistricts.json';
 import { ROUTES }            from '@constants/routes';
 import { cn }                from '@/lib/utils';
@@ -38,8 +38,9 @@ const ROLE_META = {
 
 // What roles each actor can create
 // Hierarchy: Leadership → Manager → Team Lead → {Agronomist, DEO}
+// Leadership is the super-user and can create any role, including more Leadership accounts.
 const CAN_MANAGE = {
-  manager:   ['admin'],
+  manager:   ['manager', 'admin'],
   admin:     ['team_lead'],
   team_lead: ['agronomist', 'data_entry_operator'],
 };
@@ -308,7 +309,7 @@ function SuccessCard({ user, onAddAnother, onViewUsers }) {
           </div>
           <p className="text-[0.62rem] text-amber-700 flex items-start gap-1.5 pt-1.5 border-t border-amber-200">
             <i className="fas fa-triangle-exclamation mt-0.5 shrink-0" />
-            User must change password on first login. Aadhaar &amp; bank details stored masked.
+            User must change password on first login. Aadhaar, PAN &amp; bank details entered below are not saved to the system yet.
           </p>
         </div>
 
@@ -356,10 +357,29 @@ export default function OnboardUserPage() {
   const [saving, setSaving] = useState(false);
   const [done,   setDone]   = useState(null);
 
+  const [systemUsers, setSystemUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const users = await getUsers();
+        if (!cancelled) setSystemUsers(users);
+      } catch {
+        if (!cancelled) showToast('Failed to load existing users.', 'error');
+      } finally {
+        if (!cancelled) setLoadingUsers(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const reportingOptions = useMemo(() => {
     const targetRoles = REPORTS_TO_ROLE[form.role] ?? [];
-    return SYSTEM_USERS.filter(u => targetRoles.includes(u.role) && u.status === 'active');
-  }, [form.role]);
+    return systemUsers.filter(u => targetRoles.includes(u.role) && u.status === 'active');
+  }, [form.role, systemUsers]);
 
   const districtOptions = STATE_DISTRICTS[form.state] ?? [];
 
@@ -388,7 +408,7 @@ export default function OnboardUserPage() {
     if (!form.name.trim())                              e.name           = 'Full name is required.';
     if (!form.mobile.trim())                            e.mobile         = 'Mobile number is required.';
     else if (!/^\d{10}$/.test(form.mobile))             e.mobile         = 'Must be exactly 10 digits.';
-    else if (SYSTEM_USERS.find(u => u.mobile === form.mobile)) e.mobile  = 'This mobile is already registered.';
+    else if (systemUsers.find(u => u.mobile === form.mobile)) e.mobile  = 'This mobile is already registered.';
     if (form.altMobile    && !/^\d{10}$/.test(form.altMobile))    e.altMobile     = 'Must be exactly 10 digits.';
     if (form.whatsapp     && !/^\d{10}$/.test(form.whatsapp))     e.whatsapp      = 'Must be exactly 10 digits.';
     if (form.email        && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))         e.email         = 'Enter a valid email address.';
@@ -413,74 +433,78 @@ export default function OnboardUserPage() {
       return;
     }
 
+    const meta = ROLE_META[form.role];
+
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600));
+    try {
+      // Only fields the backend User table actually stores are sent — the rest
+      // of this form (Aadhaar, PAN, bank, DOB, emergency contact, documents…)
+      // is kept for the onboarding checklist UX but is not persisted yet.
+      const created = await createUser({
+        name:            form.name.trim(),
+        mobile:          form.mobile.trim(),
+        email:           form.email.trim() || null,
+        role:            form.role,
+        manager_user_id: form.reportingTo ? Number(form.reportingTo) : null,
+        territory:       form.taluka.trim() || null,
+        district:        form.district || null,
+        status:          form.status,
+      });
 
-    const meta     = ROLE_META[form.role];
-    const initials = form.name.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const empSeq   = String(SYSTEM_USERS.length + 1).padStart(4, '0');
-    const roleCode = { manager: 'MGR', admin: 'MGR', team_lead: 'TL', agronomist: 'AGR', data_entry_operator: 'DEO' }[form.role] ?? 'USR';
+      setSystemUsers(prev => [...prev, created]);
 
-    const newUser = {
-      id:             `USR-${Date.now()}`,
-      initials,
-      employeeId:     form.employeeId || `PP-${roleCode}-${empSeq}`,
-      name:           form.name.trim(),
-      mobile:         form.mobile.trim(),
-      altMobile:      form.altMobile.trim() || null,
-      whatsapp:       form.whatsapp.trim() || form.mobile.trim(),
-      email:          form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, '.')}@profitportal.in`,
-      personalEmail:  form.personalEmail.trim() || null,
-      role:           form.role,
-      designation:    form.designation || (meta?.label ?? form.role),
-      department:     form.department,
-      employmentType: form.employmentType,
-      reportingTo:    form.reportingTo || null,
-      joiningDate:    form.joiningDate
-        ? new Date(form.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        : '',
-      probationEndDate: form.probationEndDate || null,
-      experience:     form.experience,
-      education:      form.education,
-      languages:      form.languages,
-      previousOrg:    form.previousOrg,
-      aadhaar:        form.aadhaar ? `xxxx-xxxx-${form.aadhaar.slice(-4)}` : null,
-      pan:            form.pan.toUpperCase() || null,
-      bloodGroup:     form.bloodGroup,
-      dob:            form.dob,
-      gender:         form.gender,
-      state:          form.state,
-      district:       form.district,
-      taluka:         form.taluka,
-      villages:       form.villages,
-      targetFarmers:  form.targetFarmers ? Number(form.targetFarmers) : 0,
-      pinCode:        form.pinCode,
-      emergencyContact: form.emergencyName
-        ? { name: form.emergencyName, relation: form.emergencyRelation, mobile: form.emergencyMobile }
-        : null,
-      deviceType:     form.deviceType,
-      loginMethod:    form.loginMethod,
-      twoFa:          form.twoFa,
-      accessFrom:     form.accessFrom,
-      accessTo:       form.accessTo || null,
-      bankName:       form.bankName,
-      accountNumber:  form.accountNumber ? `xxxx${form.accountNumber.slice(-4)}` : null,
-      ifsc:           form.ifsc.toUpperCase() || null,
-      pfNumber:       form.pfNumber || null,
-      uanNumber:      form.uanNumber || null,
-      ctc:            form.ctc || null,
-      status:         form.status,
-      notes:          form.notes,
-      uploadedDocs:   form.uploadedDocs,
-      lastLogin:      'Never',
-      avatarColor:    meta?.color
-        ? `linear-gradient(135deg,${meta.color},${meta.color}88)`
-        : 'linear-gradient(135deg,#6b7280,#374151)',
-    };
+      const newUser = {
+        ...created,
+        employeeId:       null, // not returned by the API
+        altMobile:        form.altMobile.trim() || null,
+        whatsapp:         form.whatsapp.trim() || form.mobile.trim(),
+        personalEmail:    form.personalEmail.trim() || null,
+        designation:      form.designation || (meta?.label ?? form.role),
+        department:       form.department,
+        employmentType:   form.employmentType,
+        joiningDate:      form.joiningDate
+          ? new Date(form.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '',
+        probationEndDate: form.probationEndDate || null,
+        experience:       form.experience,
+        education:        form.education,
+        languages:        form.languages,
+        previousOrg:      form.previousOrg,
+        bloodGroup:       form.bloodGroup,
+        dob:              form.dob,
+        gender:           form.gender,
+        state:            form.state,
+        taluka:           form.taluka,
+        villages:         form.villages,
+        targetFarmers:    form.targetFarmers ? Number(form.targetFarmers) : 0,
+        pinCode:          form.pinCode,
+        emergencyContact: form.emergencyName
+          ? { name: form.emergencyName, relation: form.emergencyRelation, mobile: form.emergencyMobile }
+          : null,
+        deviceType:       form.deviceType,
+        loginMethod:      form.loginMethod,
+        twoFa:            form.twoFa,
+        accessFrom:       form.accessFrom,
+        accessTo:         form.accessTo || null,
+        notes:            form.notes,
+        uploadedDocs:     form.uploadedDocs,
+        lastLogin:        'Never',
+        avatarColor:      meta?.color
+          ? `linear-gradient(135deg,${meta.color},${meta.color}88)`
+          : 'linear-gradient(135deg,#6b7280,#374151)',
+      };
 
-    setSaving(false);
-    setDone(newUser);
-    showToast(`${newUser.name} has been onboarded as ${meta?.label ?? form.role}.`, 'success');
+      setDone(newUser);
+      showToast(`${newUser.name} has been onboarded as ${meta?.label ?? form.role}.`, 'success');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to create user. Please try again.';
+      if (err instanceof ApiError && err.status === 409) {
+        setErrors(prev => ({ ...prev, mobile: 'This mobile is already registered.' }));
+      }
+      showToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleAddAnother() {
@@ -680,7 +704,7 @@ export default function OnboardUserPage() {
                   options={BLOOD_GROUPS} placeholder="Select blood group..." />
               </FieldWrapper>
 
-              <FieldWrapper label="Aadhaar Number" error={errors.aadhaar} hint="12 digits · stored masked after save">
+              <FieldWrapper label="Aadhaar Number" error={errors.aadhaar} hint="12 digits · not saved to the system yet">
                 <IField icon="fas fa-id-card" err={errors.aadhaar}>
                   <input type="text" className={iconInputCls(errors.aadhaar)}
                     placeholder="XXXX XXXX XXXX"
@@ -732,7 +756,7 @@ export default function OnboardUserPage() {
                 </IField>
               </FieldWrapper>
 
-              <FieldWrapper label="Work Email" error={errors.email} hint="Auto-generated if left blank">
+              <FieldWrapper label="Work Email" error={errors.email} hint="Optional">
                 <IField icon="fas fa-envelope" err={errors.email}>
                   <input type="email" className={iconInputCls(errors.email)}
                     placeholder="name@profitportal.in"
@@ -872,16 +896,16 @@ export default function OnboardUserPage() {
               <FieldWrapper label="Reports To" error={errors.reportingTo}>
                 <SelectField value={form.reportingTo} onChange={e => set('reportingTo', e.target.value)}
                   options={reportingOptions.map(u => ({ value: u.id, label: `${u.name} (${ROLE_META[u.role]?.label ?? u.role})` }))}
-                  placeholder={reportingOptions.length === 0 ? 'No managers available' : 'Select reporting manager...'}
-                  disabled={reportingOptions.length === 0} />
+                  placeholder={loadingUsers ? 'Loading…' : reportingOptions.length === 0 ? 'No managers available' : 'Select reporting manager...'}
+                  disabled={loadingUsers || reportingOptions.length === 0} />
               </FieldWrapper>
 
               <FieldWrapper label="Account Status" span2>
                 <div className="flex gap-2">
                   {[
-                    { value: 'active',   label: 'Active',   dotCls: 'bg-green-500',  activeCls: 'border-green-500 bg-green-50 text-green-700' },
-                    { value: 'inactive', label: 'Inactive', dotCls: 'bg-gray-400',   activeCls: 'border-gray-400 bg-gray-100 text-gray-600' },
-                    { value: 'on_leave', label: 'On Leave', dotCls: 'bg-yellow-500', activeCls: 'border-yellow-500 bg-yellow-50 text-yellow-700' },
+                    { value: 'active',    label: 'Active',    dotCls: 'bg-green-500',  activeCls: 'border-green-500 bg-green-50 text-green-700' },
+                    { value: 'inactive',  label: 'Inactive',  dotCls: 'bg-gray-400',   activeCls: 'border-gray-400 bg-gray-100 text-gray-600' },
+                    { value: 'suspended', label: 'Suspended', dotCls: 'bg-red-500',    activeCls: 'border-red-500 bg-red-50 text-red-700' },
                   ].map(s => (
                     <button key={s.value} type="button" onClick={() => set('status', s.value)}
                       className={cn(
@@ -1023,7 +1047,7 @@ export default function OnboardUserPage() {
           </SectionCard>
 
           {/* â”€â”€â”€ 8: Bank & Payroll â”€â”€â”€ */}
-          <SectionCard stepId={8} badge="stored masked">
+          <SectionCard stepId={8} badge="not saved yet">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
 
               <FieldWrapper label="Bank Name">
@@ -1031,7 +1055,7 @@ export default function OnboardUserPage() {
                   options={BANKS} placeholder="Select bank..." />
               </FieldWrapper>
 
-              <FieldWrapper label="Account Number" hint="Only last 4 digits shown after save">
+              <FieldWrapper label="Account Number" hint="Not saved to the system yet">
                 <IField icon="fas fa-landmark" err={false}>
                   <input type="text" className={iconInputCls(false)}
                     placeholder="Bank account number"
@@ -1123,7 +1147,7 @@ export default function OnboardUserPage() {
                 <p className="text-[0.62rem] text-muted-foreground">
                   {completedSteps < STEPS.length
                     ? <><span className="text-amber-600 font-semibold">{STEPS.length - completedSteps} section(s)</span> still incomplete · Default password = mobile number</>
-                    : <><span className="text-green-600 font-semibold">All {STEPS.length} sections filled</span> · Aadhaar &amp; bank details stored masked</>
+                    : <><span className="text-green-600 font-semibold">All {STEPS.length} sections filled</span> · Default password = mobile number</>
                   }
                 </p>
               </div>

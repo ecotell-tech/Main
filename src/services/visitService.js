@@ -15,6 +15,8 @@ function normalizeVisit(v) {
     status:   v.status ?? 'scheduled',
     location: v.location ?? '—',
     notes:    v.notes ?? '',
+    repId:    v.conducted_by_user_id ?? null,
+    createdAt: v.created_at ?? null,
   };
 }
 

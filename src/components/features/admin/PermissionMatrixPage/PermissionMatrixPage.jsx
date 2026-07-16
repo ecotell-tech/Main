@@ -17,11 +17,11 @@
  * Both tabs persist to localStorage via their respective contexts.
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import { usePermissions }   from '@context/PermissionsContext';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useModuleAccess }  from '@context/ModuleAccessContext';
 import { ROLES, PERMISSIONS, ROLE_PERMISSIONS } from '@constants/roles';
 import { ROUTE_REGISTRY } from '@constants/routeRegistry';
+import { getPermissionMatrix, updatePermissionMatrix } from '@services/permissionService';
 import Button  from '@common/Button/Button';
 import Badge   from '@common/Badge/Badge';
 import { useToast } from '@hooks/useToast';
@@ -244,14 +244,6 @@ function RoleColHeader({ col, count, total, isDirtyCol, onToggleAll }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers for Permission Matrix
 // ─────────────────────────────────────────────────────────────────────────────
-function buildPermDraftFromContext(getRolePermissions) {
-  const draft = {};
-  for (const col of ROLE_COLUMNS) {
-    draft[col.key] = new Set(getRolePermissions(col.key));
-  }
-  return draft;
-}
-
 function setsEqual(a, b) {
   if (a.size !== b.size) return false;
   for (const item of a) if (!b.has(item)) return false;
@@ -262,24 +254,48 @@ function setsEqual(a, b) {
 // Tab 1: Permission Matrix
 // ─────────────────────────────────────────────────────────────────────────────
 function PermissionsTab() {
-  const { getRolePermissions, setAllRolePermissions, resetAllToDefaults, hasOverrides } =
-    usePermissions();
   const { showToast } = useToast();
 
-  const [draft, setDraft] = useState(() => buildPermDraftFromContext(getRolePermissions));
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [original, setOriginal] = useState(null); // role -> Set, last-saved-from-server baseline
+  const [draft, setDraft]       = useState(null);
+  const [saving, setSaving]     = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await getPermissionMatrix();
+      const asSets = {};
+      for (const col of ROLE_COLUMNS) asSets[col.key] = new Set(data.roles[col.key] ?? []);
+      setOriginal(asSets);
+      setDraft(asSets);
+    } catch (err) {
+      showToast(err.message || 'Failed to load permission matrix.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dirtyRoles = useMemo(() => {
     const result = new Set();
+    if (!draft || !original) return result;
     for (const col of ROLE_COLUMNS) {
-      const original = getRolePermissions(col.key);
-      if (!setsEqual(draft[col.key], original)) result.add(col.key);
+      if (!setsEqual(draft[col.key], original[col.key])) result.add(col.key);
     }
     return result;
-  }, [draft, getRolePermissions]);
+  }, [draft, original]);
 
   const isDirty = dirtyRoles.size > 0;
+
+  const hasOverrides = useMemo(() => {
+    if (!original) return false;
+    return ROLE_COLUMNS.some(
+      col => !col.locked && !setsEqual(original[col.key], new Set(ROLE_PERMISSIONS[col.key] ?? []))
+    );
+  }, [original]);
 
   const toggle = useCallback((role, perm) => {
     if (LOCKED_ROLES.has(role)) return;
@@ -291,23 +307,46 @@ function PermissionsTab() {
     });
   }, []);
 
-  async function handleSave() {
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 300));
-    setAllRolePermissions(draft);
-    setSaving(false);
-    showToast('Permission matrix saved successfully.', 'success');
+  async function persist(payloadDraft) {
+    const roles = Object.fromEntries(
+      ROLE_COLUMNS.filter(c => !c.locked).map(c => [c.key, Array.from(payloadDraft[c.key])])
+    );
+    const data = await updatePermissionMatrix(roles);
+    const asSets = {};
+    for (const col of ROLE_COLUMNS) asSets[col.key] = new Set(data.roles[col.key] ?? []);
+    setOriginal(asSets);
+    setDraft(asSets);
   }
 
-  function handleReset() {
-    resetAllToDefaults();
-    setDraft(buildPermDraftFromContext((role) => ROLE_PERMISSIONS[role] ?? new Set()));
-    setConfirmReset(false);
-    showToast('All roles reset to default permissions.', 'success');
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await persist(draft);
+      showToast('Permission matrix saved successfully.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to save permission matrix.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleReset() {
+    setSaving(true);
+    try {
+      const defaults = {};
+      for (const col of ROLE_COLUMNS) defaults[col.key] = new Set(ROLE_PERMISSIONS[col.key] ?? []);
+      await persist(defaults);
+      showToast('All roles reset to default permissions.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to reset permissions.', 'error');
+    } finally {
+      setSaving(false);
+      setConfirmReset(false);
+    }
   }
 
   function handleDiscard() {
-    setDraft(buildPermDraftFromContext(getRolePermissions));
+    setDraft(original);
   }
 
   function toggleAllForRole(role) {
@@ -321,6 +360,14 @@ function PermissionsTab() {
   }
 
   const totalPermCount = Object.values(PERMISSIONS).length;
+
+  if (loading || !draft || !original) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+        <i className="fas fa-spinner fa-spin mr-2" />Loading permission matrix…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -405,9 +452,9 @@ function PermissionsTab() {
                         <div className="text-[0.65rem] text-muted-foreground mt-0.5 leading-tight">{item.desc}</div>
                       </td>
                       {ROLE_COLUMNS.map(col => {
-                        const checked   = LOCKED_ROLES.has(col.key) || draft[col.key].has(item.key);
-                        const original  = getRolePermissions(col.key).has(item.key);
-                        const cellDirty = !LOCKED_ROLES.has(col.key) && checked !== original;
+                        const checked      = LOCKED_ROLES.has(col.key) || draft[col.key].has(item.key);
+                        const wasGranted   = original[col.key].has(item.key);
+                        const cellDirty    = !LOCKED_ROLES.has(col.key) && checked !== wasGranted;
                         return (
                           <MatrixCell
                             key={col.key}

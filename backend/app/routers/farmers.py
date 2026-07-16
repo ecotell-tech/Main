@@ -23,6 +23,7 @@ from app.schemas.farmer import (
     MobileCheckResponse,
     RejectFarmerPayload,
 )
+from app.schemas.farmer_assignment import FarmerAssignmentCreate, FarmerAssignmentOut
 from app.services.farmer_service import FarmerService, get_farmer_service
 
 router = APIRouter()
@@ -88,6 +89,27 @@ async def list_draft_farmers(
         limit=params.limit,
         pages=params.total_pages(total),
     )
+
+
+@router.get("/assignments", response_model=list[FarmerAssignmentOut])
+async def list_assignments(
+    service:      FarmerService = Depends(get_farmer_service),
+    current_user: User          = Depends(require_permission("manage_users")),
+):
+    """Current active farmer→representative task assignments."""
+    return await service.get_active_assignments()
+
+
+@router.post("/assignments", response_model=list[FarmerAssignmentOut])
+async def create_assignments(
+    body:         FarmerAssignmentCreate,
+    service:      FarmerService = Depends(get_farmer_service),
+    current_user: User          = Depends(require_permission("manage_users")),
+):
+    """Bulk-assign selected farmers to a representative, replacing any prior assignment."""
+    if not body.farmer_ids:
+        raise HTTPException(status_code=400, detail="farmer_ids must not be empty")
+    return await service.bulk_assign(body.farmer_ids, body.user_id, body.due_date, current_user.id)
 
 
 @router.put("/{farmer_id}/complete", response_model=FarmerDetail)
@@ -227,11 +249,11 @@ async def upload_farmer_photos(
 
 @router.get("/{farmer_id}", response_model=FarmerDetail)
 async def get_farmer(
-    farmer_id: int,
-    service:   FarmerService = Depends(get_farmer_service),
-    _:         User          = Depends(require_permission("view_farmers")),
+    farmer_id:    int,
+    service:      FarmerService = Depends(get_farmer_service),
+    current_user: User          = Depends(require_permission("view_farmers")),
 ):
-    return await service.get_or_404(farmer_id)
+    return await service.get_or_404(farmer_id, current_user)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=FarmerDetail)

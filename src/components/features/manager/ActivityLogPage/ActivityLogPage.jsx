@@ -1,12 +1,12 @@
 /**
  * ActivityLogPage — Leadership (Manager)
  * Activity tab: real visit events from the API (cross-role).
- * Backup tab: static placeholder (no backup backend yet).
+ * Backup tab: real system_backups rows — empty until a backup process exists.
  */
 import { useState, useMemo, useEffect } from 'react';
 import Badge  from '@common/Badge/Badge';
 import Button from '@common/Button/Button';
-import { getAllActivity } from '@services/dashboardService';
+import { getAllActivity, getSystemBackups } from '@services/dashboardService';
 
 const ROLE_COLORS = {
   Representative: '#16a34a',
@@ -16,17 +16,25 @@ const ROLE_COLORS = {
   Manager:        '#dc2626',
 };
 
-const BACKUP_RUNS = [
-  { id: 'BK-001', type: 'Full Backup',        date: '03 May 2026', time: '02:00', size: '142 MB', status: 'success', dest: 'S3 · prod-backup' },
-  { id: 'BK-002', type: 'Incremental Backup', date: '02 May 2026', time: '02:00', size: '18 MB',  status: 'success', dest: 'S3 · prod-backup' },
-  { id: 'BK-003', type: 'Full Backup',        date: '26 Apr 2026', time: '02:00', size: '138 MB', status: 'success', dest: 'S3 · prod-backup' },
-  { id: 'BK-004', type: 'Incremental Backup', date: '25 Apr 2026', time: '02:00', size: '5 MB',   status: 'failed',  dest: 'S3 · prod-backup' },
-];
+function formatBackupRun(b) {
+  const started = new Date(b.started_at);
+  return {
+    id:     `BK-${String(b.id).padStart(3, '0')}`,
+    type:   b.backup_type === 'full' ? 'Full Backup' : b.backup_type === 'incremental' ? 'Incremental Backup' : 'Differential Backup',
+    date:   started.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    time:   started.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    size:   b.file_size_mb != null ? `${b.file_size_mb} MB` : '—',
+    status: b.status === 'completed' ? 'success' : b.status === 'failed' ? 'failed' : 'running',
+    dest:   b.destination ?? '—',
+  };
+}
 
 export default function ActivityLogPage() {
   const [tab,     setTab]     = useState('activity');
   const [logs,    setLogs]    = useState([]);
   const [loading, setLoading] = useState(true);
+  const [backups, setBackups] = useState([]);
+  const [backupsLoading, setBackupsLoading] = useState(true);
   const [fUser,   setFUser]   = useState('all');
   const [fAction, setFAction] = useState('all');
   const [fDate,   setFDate]   = useState('all');
@@ -39,6 +47,9 @@ export default function ActivityLogPage() {
     getAllActivity(100)
       .then(data => { setLogs(data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
+    getSystemBackups(50)
+      .then(data => { setBackups((data ?? []).map(formatBackupRun)); setBackupsLoading(false); })
+      .catch(() => setBackupsLoading(false));
   }, []);
 
   const uniqueUsers   = useMemo(() => [...new Set(logs.map(l => l.actor))].sort(), [logs]);
@@ -246,18 +257,31 @@ export default function ActivityLogPage() {
 
       {tab === 'backup' && (
         <div className="space-y-3">
-          {BACKUP_RUNS.map(b => (
+          {backupsLoading ? (
+            <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
+              <i className="fas fa-spinner fa-spin text-lg" />
+              <span className="text-sm">Loading backup history…</span>
+            </div>
+          ) : backups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3 bg-card rounded-2xl border border-border">
+              <i className="fas fa-database text-3xl opacity-30" />
+              <div className="text-sm">No backup runs recorded yet</div>
+              <div className="text-xs opacity-70">No automated backup process is configured for this system.</div>
+            </div>
+          ) : backups.map(b => (
             <div key={b.id} className="bg-card rounded-2xl border border-border shadow-sm p-4 flex items-center gap-4 flex-wrap">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${b.status === 'success' ? 'bg-green-50' : 'bg-red-50'}`}>
-                <i className={`fas fa-database text-sm ${b.status === 'success' ? 'text-green-600' : 'text-red-500'}`} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${b.status === 'success' ? 'bg-green-50' : b.status === 'failed' ? 'bg-red-50' : 'bg-amber-50'}`}>
+                <i className={`fas fa-database text-sm ${b.status === 'success' ? 'text-green-600' : b.status === 'failed' ? 'text-red-500' : 'text-amber-600'}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-foreground">{b.type}</div>
                 <div className="text-[0.65rem] text-muted-foreground">{b.dest} · {b.size}</div>
               </div>
               <div className="text-[0.65rem] text-muted-foreground whitespace-nowrap">{b.date} {b.time}</div>
-              <Badge variant={b.status === 'success' ? 'success' : 'danger'}>
-                {b.status === 'success' ? <><i className="fas fa-check mr-1" />Success</> : <><i className="fas fa-xmark mr-1" />Failed</>}
+              <Badge variant={b.status === 'success' ? 'success' : b.status === 'failed' ? 'danger' : 'warning'}>
+                {b.status === 'success' ? <><i className="fas fa-check mr-1" />Success</>
+                  : b.status === 'failed' ? <><i className="fas fa-xmark mr-1" />Failed</>
+                  : <><i className="fas fa-spinner fa-spin mr-1" />Running</>}
               </Badge>
               <Badge variant="muted">{b.id}</Badge>
             </div>

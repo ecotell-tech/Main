@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, SmallInteger
+from sqlalchemy import BigInteger, Boolean, Column, Integer, String, Text, Enum, ForeignKey, SmallInteger
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -12,7 +12,7 @@ class Role(TimestampMixin, Base):
     name         = Column(String(60), nullable=False, unique=True)
     display_name = Column(String(100), nullable=False)
     description  = Column(Text)
-    is_active    = Column(SmallInteger, nullable=False, default=1)
+    is_active    = Column(Boolean, nullable=False, default=True)
 
     users       = relationship("User", back_populates="role")
     permissions = relationship("Permission", secondary="role_permissions", back_populates="roles")
@@ -21,10 +21,10 @@ class Role(TimestampMixin, Base):
 class Permission(TimestampMixin, Base):
     __tablename__ = "permissions"
 
-    id          = Column(Integer, primary_key=True, autoincrement=True)
+    id          = Column(SmallInteger, primary_key=True, autoincrement=True)
     key         = Column("name", String(80), nullable=False, unique=True)
     label       = Column("display_name", String(120), nullable=False)
-    module      = Column(String(60))
+    module      = Column(String(60), nullable=False)
     description = Column(Text)
 
     roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
@@ -34,22 +34,22 @@ class RolePermission(Base):
     __tablename__ = "role_permissions"
 
     role_id       = Column(SmallInteger, ForeignKey("roles.id"), primary_key=True)
-    permission_id = Column(Integer, ForeignKey("permissions.id"), primary_key=True)
+    permission_id = Column(SmallInteger, ForeignKey("permissions.id"), primary_key=True)
 
 
 class User(SoftDeleteMixin, Base):
     __tablename__ = "users"
 
-    id            = Column(Integer, primary_key=True, autoincrement=True)
+    id            = Column(BigInteger, primary_key=True, autoincrement=True)
     employee_code = Column(String(20), nullable=False, unique=True)
     name          = Column(String(120), nullable=False)
     mobile        = Column(String(15), nullable=False, unique=True)
-    email         = Column(String(180))
+    email         = Column(String(180), unique=True)
     password_hash = Column(String(255))
     role_id       = Column(SmallInteger, ForeignKey("roles.id"), nullable=False)
     status        = Column(Enum("active", "inactive", "suspended"), nullable=False, default="active")
     # The managing user this account reports to (agronomist → manager, etc.)
-    manager_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    manager_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     # Free-text geographic assignment (optional display info)
     territory = Column(String(120), nullable=True)
     district  = Column(String(80),  nullable=True)

@@ -13,7 +13,7 @@ const LOGIN_METHOD = Object.freeze({ PASSWORD: 'password', OTP: 'otp' });
 
 const ANDROID_APK_URL = `${window.location.origin}/downloads/app.apk`;
 
-function AndroidAppBanner({ onClick }) {
+function AndroidAppBanner({ onDownload }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
 
   useEffect(() => {
@@ -24,19 +24,20 @@ function AndroidAppBanner({ onClick }) {
 
   return (
     <div className="flex items-center gap-3 mt-5 p-3 rounded-xl bg-blue-50 border border-blue-100">
-      <button
-        type="button"
-        onClick={onClick}
+      <a
+        href={ANDROID_APK_URL}
+        download
+        onClick={onDownload}
         className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
       >
         <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-600 text-white shrink-0">
           <i className="fab fa-android text-base" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-blue-900">Android app coming soon</div>
+          <div className="text-xs font-semibold text-blue-900">Download the Android app</div>
           <div className="text-[0.7rem] text-blue-700">Click here to download</div>
         </div>
-      </button>
+      </a>
       {qrDataUrl && (
         <img
           src={qrDataUrl}
@@ -119,7 +120,7 @@ export default function LoginPage() {
   }
 
   function handleAndroidDownloadClick() {
-    showToast('Android app launching soon — stay tuned!', 'warning');
+    showToast('Downloading the Pruthashakti Android app…', 'success');
   }
 
   return (
@@ -181,7 +182,7 @@ export default function LoginPage() {
           </div>
 
           {/* Android app banner */}
-          <AndroidAppBanner onClick={handleAndroidDownloadClick} />
+          <AndroidAppBanner onDownload={handleAndroidDownloadClick} />
 
           {/* Demo credentials (dev only) */}
           {import.meta.env.VITE_APP_ENV === 'development' && (

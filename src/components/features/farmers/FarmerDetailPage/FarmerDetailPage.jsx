@@ -482,6 +482,7 @@ export default function FarmerDetailPage() {
   const canFieldDetails = CAN_SEE_FIELD_DETAILS.includes(role);
   const canSensitive    = CAN_SEE_SENSITIVE.includes(role);
   const canAudit        = CAN_SEE_AUDIT.includes(role);
+  const isLeadership    = role === 'manager'; // Leadership sees real Aadhaar/bank values, not masked
 
   if (loading) {
     return (
@@ -849,8 +850,8 @@ export default function FarmerDetailPage() {
       >
         {canSensitive ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <InfoRow icon="fas fa-id-card"              label="Aadhaar (Masked)"      value={farmer.aadhaar}      iconColor="#e11d48" mono />
-            <InfoRow icon="fas fa-building-columns"     label="Bank Account (Masked)" value={farmer.bankAccount}  iconColor="#2563eb" mono />
+            <InfoRow icon="fas fa-id-card"              label={isLeadership ? 'Aadhaar' : 'Aadhaar (Masked)'}          value={farmer.aadhaar}      iconColor="#e11d48" mono />
+            <InfoRow icon="fas fa-building-columns"     label={isLeadership ? 'Bank Account' : 'Bank Account (Masked)'} value={farmer.bankAccount}  iconColor="#2563eb" mono />
             <InfoRow icon="fas fa-indian-rupee-sign"    label="Est. Annual Income"    value={farmer.annualIncome ? `₹ ${Number(farmer.annualIncome).toLocaleString('en-IN')}` : '—'} iconColor="#16a34a" />
           </div>
         ) : (

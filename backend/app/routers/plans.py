@@ -16,6 +16,8 @@ from app.services.plan_service import PlanService, get_plan_service
 
 router = APIRouter()
 
+_SELF_SCOPED_ROLES = {"agronomist"}
+
 
 def _comp_out(comp) -> dict:
     return {
@@ -31,15 +33,18 @@ def _comp_out(comp) -> dict:
 
 def _summarise(plan) -> dict:
     return {
-        "id":             plan.id,
-        "plan_code":      plan.plan_code,
-        "farmer_id":      plan.farmer_id,
-        "farmer_name":    plan.farmer.name if plan.farmer else None,
-        "status":         plan.status,
-        "overall_status": plan.overall_status,
-        "start_date":     plan.start_date,
-        "end_date":       plan.end_date,
-        "created_at":     plan.created_at,
+        "id":                 plan.id,
+        "plan_code":          plan.plan_code,
+        "farmer_id":          plan.farmer_id,
+        "farmer_name":        plan.farmer.name if plan.farmer else None,
+        "consultant_user_id": plan.consultant_user_id,
+        "consultant_name":    plan.consultant.name if plan.consultant else None,
+        "status":             plan.status,
+        "overall_status":     plan.overall_status,
+        "start_date":         plan.start_date,
+        "end_date":           plan.end_date,
+        "created_at":         plan.created_at,
+        "components":         [_comp_out(c) for c in (plan.components or [])],
     }
 
 
@@ -47,11 +52,9 @@ def _detail(plan) -> dict:
     d = _summarise(plan)
     d.update(
         {
-            "consultant_user_id":  plan.consultant_user_id,
             "created_by_user_id":  plan.created_by_user_id,
             "approved_by_user_id": plan.approved_by_user_id,
             "notes":               plan.notes,
-            "components":          [_comp_out(c) for c in (plan.components or [])],
         }
     )
     return d
@@ -65,8 +68,12 @@ async def list_plans(
     current_user: User = Depends(require_permission("view_plans")),
     service: PlanService = Depends(get_plan_service),
 ):
+    own_only = current_user.role.name in _SELF_SCOPED_ROLES
     rows, total = await service.list(
-        params, user_id=current_user.id, farmer_id=farmer_id, status=status
+        params,
+        user_id=current_user.id if own_only else None,
+        farmer_id=farmer_id,
+        status=status,
     )
     return {
         "plans": [_summarise(p) for p in rows],

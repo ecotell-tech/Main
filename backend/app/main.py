@@ -11,7 +11,10 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine, Base
-from app.routers import auth, farmers, visits, dashboard, reports, admin, geography, plans, master, form_config
+from app.routers import (
+    auth, farmers, visits, dashboard, reports, admin, geography, plans, master,
+    form_config, sms_gateway_config, territory, system_backup, notification_preference,
+)
 
 # Ensure base upload directory exists at startup.
 # Subfolders (farmer_photos/{date}/{rep_id}/) are created dynamically per upload.
@@ -62,11 +65,6 @@ _ADD_MANAGER_USER_ID = text(
     "ADD COLUMN manager_user_id BIGINT UNSIGNED NULL "
     "COMMENT 'The managing user (manager/supervisor) this account reports to'"
 )
-# Fix existing INT type if the column was already added with wrong type
-_FIX_MANAGER_USER_ID_TYPE = text(
-    "ALTER TABLE users "
-    "MODIFY COLUMN manager_user_id BIGINT UNSIGNED NULL"
-)
 
 # Migration 005 — custom_fields JSON column on farmers
 _ADD_CUSTOM_FIELDS = text(
@@ -94,7 +92,7 @@ _CREATE_FORM_TEMPLATES = text("""
     ) ENGINE=InnoDB
 """)
 
-# Migration 010 — territory / district free-text columns on users table
+# Migration 014 — territory / district free-text columns on users table
 _ADD_USER_TERRITORY = text(
     "ALTER TABLE users ADD COLUMN territory VARCHAR(120) NULL"
 )
@@ -102,25 +100,12 @@ _ADD_USER_DISTRICT = text(
     "ALTER TABLE users ADD COLUMN district VARCHAR(80) NULL"
 )
 
-# Migration 009 — territory selection config column on form_templates
+# Migration 014 — territory selection config column on form_templates
 _ADD_TERRITORY_COLUMN = text(
     "ALTER TABLE form_templates "
     "ADD COLUMN territory JSON NULL "
     "COMMENT 'State/district/taluka/village IDs selected by this team lead'"
 )
-
-# Migration 008 — ensure team_lead role has the manage_roles permission
-_SEED_TEAM_LEAD_PERMISSIONS = text("""
-    INSERT IGNORE INTO role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM roles r
-    JOIN permissions p ON p.name IN (
-        'view_farmers','create_farmer','edit_farmer','view_visits','create_visit',
-        'view_plans','approve_plan','view_reports','export_reports',
-        'view_settings','edit_settings','manage_users','manage_roles'
-    )
-    WHERE r.name IN ('team_lead', 'supervisor')
-""")
 
 
 @asynccontextmanager
@@ -129,11 +114,11 @@ async def lifespan(app: FastAPI):
     _log = logging.getLogger(__name__)
 
     # Best-effort schema patches — non-fatal if DB isn't ready at boot time.
-    # Running 'alembic upgrade head' is the canonical fix; these are fallbacks.
+    # Running 'alembic upgrade head' is the canonical fix; these are fallbacks
+    # for databases that predate the current schema.sql / migration chain.
     for stmt, label in [
         (_CREATE_FARMER_PHOTOS,        "farmer_photos table"),
         (_ADD_MANAGER_USER_ID,         "users.manager_user_id column"),
-        (_FIX_MANAGER_USER_ID_TYPE,    "users.manager_user_id type fix"),
         (_ADD_IS_DRAFT,                "farmers.is_draft column"),
         (_ADD_REVIEW_STATUS,           "farmers.review_status column"),
         (_ADD_REJECTION_REASON,        "farmers.rejection_reason column"),
@@ -143,7 +128,6 @@ async def lifespan(app: FastAPI):
         (_ADD_TERRITORY_COLUMN,        "form_templates.territory column"),
         (_ADD_USER_TERRITORY,          "users.territory column"),
         (_ADD_USER_DISTRICT,           "users.district column"),
-        (_SEED_TEAM_LEAD_PERMISSIONS,  "team_lead manage_roles permission"),
     ]:
         try:
             async with engine.begin() as conn:
@@ -224,6 +208,10 @@ app.include_router(admin.router,      prefix="/admin",      tags=["Admin"])
 app.include_router(geography.router,  prefix="/geography",  tags=["Geography"])
 app.include_router(master.router,      prefix="/master",      tags=["Master"])
 app.include_router(form_config.router, prefix="/form-config", tags=["Form Config"])
+app.include_router(sms_gateway_config.router, prefix="/settings/sms-gateway", tags=["Settings"])
+app.include_router(territory.router, prefix="/territory-assignments", tags=["Territory"])
+app.include_router(system_backup.router, prefix="/admin/backups", tags=["Admin"])
+app.include_router(notification_preference.router, prefix="/settings/notifications", tags=["Settings"])
 
 
 @app.get("/health", tags=["Health"])

@@ -22,6 +22,7 @@ import { useNavigate }  from 'react-router-dom';
 import { ROUTES }       from '@constants/routes';
 import * as authService from '@services/authService';
 import { storeToken }   from '@services/api';
+import { updateUser }   from '@services/userService';
 
 // ── Session persistence key (env-driven, never hardcoded) ─────────────
 const USER_KEY      = `${import.meta.env.VITE_SESSION_KEY ?? 'pscms_session'}_user`;
@@ -114,6 +115,28 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  /** Request an OTP be generated for this mobile number (second-factor login). */
+  const sendOtp = useCallback(async (mobile) => {
+    try {
+      await authService.sendOtp(mobile);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message ?? 'Failed to send OTP.' };
+    }
+  }, []);
+
+  /** Verify an OTP — same session-setup contract as signIn. */
+  const verifyOtp = useCallback(async (mobile, otp) => {
+    try {
+      const { user } = await authService.verifyOtp(mobile, otp);
+      sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+      setCurrentUser(user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message ?? 'OTP verification failed.' };
+    }
+  }, []);
+
   /** Sign out — delegates token cleanup to authService. */
   const signOut = useCallback(async () => {
     await authService.signOut();
@@ -138,6 +161,25 @@ export function AuthProvider({ children }) {
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message ?? 'Password change failed.' };
+    }
+  }, [currentUser]);
+
+  /**
+   * Update the current user's own profile (name/mobile). Leadership-only feature —
+   * gated in the UI (ProfilePanel), backed by the same PUT /admin/users/:id
+   * endpoint used by admin UsersPage (requires manage_users, which Leadership has).
+   * Returns { success, error? } consistent with signIn shape.
+   */
+  const updateProfile = useCallback(async (patch) => {
+    try {
+      if (!currentUser) throw new Error('Not authenticated.');
+      const updated = await updateUser(currentUser.id, patch);
+      const merged = { ...currentUser, name: updated.name, mobile: updated.mobile };
+      sessionStorage.setItem(USER_KEY, JSON.stringify(merged));
+      setCurrentUser(merged);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message ?? 'Failed to update profile.' };
     }
   }, [currentUser]);
 
@@ -171,8 +213,8 @@ export function AuthProvider({ children }) {
   const isImpersonating = Boolean(currentUser?._impersonating);
 
   const value = useMemo(
-    () => ({ currentUser, isAuthenticated: Boolean(currentUser), signIn, signOut, changePassword, impersonateUser, exitImpersonation, isImpersonating }),
-    [currentUser, signIn, signOut, changePassword, impersonateUser, exitImpersonation, isImpersonating],
+    () => ({ currentUser, isAuthenticated: Boolean(currentUser), signIn, sendOtp, verifyOtp, signOut, changePassword, updateProfile, impersonateUser, exitImpersonation, isImpersonating }),
+    [currentUser, signIn, sendOtp, verifyOtp, signOut, changePassword, updateProfile, impersonateUser, exitImpersonation, isImpersonating],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

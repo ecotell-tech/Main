@@ -24,7 +24,9 @@ INSERT IGNORE INTO permissions (name, display_name, module) VALUES
   ('edit_settings',  'Edit Settings',     'settings'),
   ('manage_users',   'Manage Users',      'admin'),
   ('manage_roles',   'Manage Roles',      'admin'),
-  ('view_audit_log', 'View Audit Log',    'admin');
+  ('view_audit_log', 'View Audit Log',    'admin'),
+  ('manage_sms_gateway', 'Manage SMS Gateway', 'settings'),
+  ('manage_master_data', 'Manage Master Data', 'admin');
 
 -- ── 2. Role → Permission grants ───────────────────────────────
 -- Agronomist: register/edit farmers, visits, plans, reports, settings
@@ -39,7 +41,8 @@ WHERE r.name = 'agronomist'
     'view_settings', 'edit_settings'
   );
 
--- Team Lead: view/edit farmers, visits, approve plans, export reports, manage roles
+-- Team Lead: view/edit farmers, visits, approve plans, export reports,
+-- manage roles, manage users (their own reps — matches frontend ROLE_PERMISSIONS)
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'team_lead'
@@ -48,7 +51,7 @@ WHERE r.name = 'team_lead'
     'view_visits',  'create_visit',
     'view_plans',   'create_plan', 'approve_plan',
     'view_reports', 'export_reports',
-    'view_settings', 'manage_roles'
+    'view_settings', 'manage_roles', 'manage_users'
   );
 
 -- Manager: all permissions

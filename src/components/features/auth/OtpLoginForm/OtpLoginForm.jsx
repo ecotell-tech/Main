@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useOtpTimer } from '@hooks/useOtpTimer';
 import { useToast }    from '@hooks/useToast';
+import { useAuth }     from '@context/AuthContext';
 import { APP_CONFIG }  from '@constants/appConfig';
 
 const OTP_LENGTH = APP_CONFIG.otp.lengthDigits;
@@ -12,6 +13,7 @@ const OTP_LENGTH = APP_CONFIG.otp.lengthDigits;
  */
 export default function OtpLoginForm({ onSuccess }) {
   const { showToast } = useToast();
+  const { sendOtp, verifyOtp } = useAuth();
 
   const [step,          setStep]          = useState(1); // 1 = enter mobile, 2 = enter OTP
   const [otpMobile,     setOtpMobile]     = useState('');
@@ -35,11 +37,17 @@ export default function OtpLoginForm({ onSuccess }) {
     }
     setMobileError('');
     setIsSending(true);
-    await new Promise((res) => setTimeout(res, 800));
+    const result = await sendOtp(otpMobile);
     setIsSending(false);
-    setStep(2);
-    startTimer();
-    showToast(`OTP sent to ${otpMobile}`, 'success');
+    if (result.success) {
+      setOtpDigits(Array(OTP_LENGTH).fill(''));
+      setStep(2);
+      startTimer();
+      showToast(`OTP sent to ${otpMobile}`, 'success');
+    } else {
+      setMobileError(result.error);
+      showToast(result.error, 'error');
+    }
   }
 
   /* ── OTP box keyboard navigation ─────────────────────── */
@@ -76,17 +84,25 @@ export default function OtpLoginForm({ onSuccess }) {
       return;
     }
     setIsVerifying(true);
-    await new Promise((res) => setTimeout(res, 800));
+    const result = await verifyOtp(otpMobile, otp);
     setIsVerifying(false);
-    // Demo: any complete OTP is accepted
-    showToast('OTP verified. Welcome back!', 'success');
-    onSuccess?.();
+    if (result.success) {
+      showToast('OTP verified. Welcome back!', 'success');
+      onSuccess?.();
+    } else {
+      showToast(result.error, 'error');
+    }
   }
 
-  function handleResend() {
+  async function handleResend() {
     setOtpDigits(Array(OTP_LENGTH).fill(''));
-    startTimer();
-    showToast(`OTP resent to ${otpMobile}`, 'success');
+    const result = await sendOtp(otpMobile);
+    if (result.success) {
+      startTimer();
+      showToast(`OTP resent to ${otpMobile}`, 'success');
+    } else {
+      showToast(result.error, 'error');
+    }
   }
 
   /* ── Step 1 UI ─────────────────────────────────────── */

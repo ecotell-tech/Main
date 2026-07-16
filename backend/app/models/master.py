@@ -1,14 +1,15 @@
-from sqlalchemy import Column, SmallInteger, String, Text, Enum
+from sqlalchemy import Boolean, Column, SmallInteger, String, Text, Enum
 from app.database import Base
 from app.models.base import TimestampMixin
 
 
 class Crop(TimestampMixin, Base):
     __tablename__ = "crops"
-    id       = Column(SmallInteger, primary_key=True, autoincrement=True)
-    name     = Column(String(80),  nullable=False, unique=True)
-    category = Column(String(60))
-    season   = Column(String(60))
+    id        = Column(SmallInteger, primary_key=True, autoincrement=True)
+    name      = Column(String(80),  nullable=False, unique=True)
+    category  = Column(String(60))
+    season    = Column(String(60))
+    is_active = Column(Boolean, nullable=False, server_default="1")
 
 
 class Challenge(TimestampMixin, Base):

@@ -1,81 +1,28 @@
 /**
  * ScoringConfigPage — Organic Farming Manager
  * Screen 33: Configurable readiness scoring with 5 factors + weightage
+ *
+ * Note: this config controls the scoring_factors table (real, persisted),
+ * but is not yet wired into the actual farmer adoption_score calculation —
+ * that's a separate formula (see backend/app/services/farmer_service.py
+ * _compute_adoption_score). Saving here updates the displayed weights only.
  */
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Badge   from '@common/Badge/Badge';
 import Button  from '@common/Button/Button';
 import { useToast } from '@hooks/useToast';
-import MOCK_FARMERS from '@data/mock/farmers.json';
+import { getScoringFactors, updateScoringWeights } from '@services/scoringService';
+import { getFarmers } from '@services/farmerService';
+import { ApiError } from '@services/api';
 
-/* ─── Default scoring parameters ───────────────────────────────────── */
-const DEFAULT_FACTORS = [
-  {
-    id: 'interest',
-    label: 'Farmer Interest Level',
-    description: 'Self-reported interest in adopting organic/natural farming practices.',
-    icon: 'fas fa-heart',
-    color: '#e11d48',
-    weight: 30,
-    options: [
-      { label: 'High',   score: 100 },
-      { label: 'Medium', score: 55  },
-      { label: 'Low',    score: 10  },
-    ],
-  },
-  {
-    id: 'water',
-    label: 'Water Availability',
-    description: 'Availability of reliable irrigation or water source on the farm.',
-    icon: 'fas fa-droplet',
-    color: '#2563eb',
-    weight: 25,
-    options: [
-      { label: 'Perennial Canal / Borewell', score: 100 },
-      { label: 'Seasonal Well',              score: 60  },
-      { label: 'Rain-fed only',              score: 20  },
-    ],
-  },
-  {
-    id: 'chemical',
-    label: 'Chemical Dependency',
-    description: 'Current reliance on chemical inputs (lower dependency = higher score).',
-    icon: 'fas fa-flask',
-    color: '#d97706',
-    weight: 20,
-    options: [
-      { label: 'Organic / Natural already',  score: 100 },
-      { label: 'Partial chemical use',        score: 55  },
-      { label: 'Fully chemical dependent',    score: 10  },
-    ],
-  },
-  {
-    id: 'training',
-    label: 'Training Willingness',
-    description: 'Farmer\'s readiness to attend training sessions and workshops.',
-    icon: 'fas fa-graduation-cap',
-    color: '#7c3aed',
-    weight: 15,
-    options: [
-      { label: 'Very willing',     score: 100 },
-      { label: 'Moderate',         score: 55  },
-      { label: 'Not willing',      score: 10  },
-    ],
-  },
-  {
-    id: 'participation',
-    label: 'Past Programme Participation',
-    description: 'Prior involvement in government or NGO farming improvement programs.',
-    icon: 'fas fa-handshake',
-    color: '#0d9488',
-    weight: 10,
-    options: [
-      { label: 'Has participated before', score: 100 },
-      { label: 'Aware but not joined',    score: 50  },
-      { label: 'No prior exposure',       score: 10  },
-    ],
-  },
-];
+/* Decorative icon/color per factor code — not stored server-side */
+const FACTOR_META = {
+  interest:      { icon: 'fas fa-heart',           color: '#e11d48' },
+  water:         { icon: 'fas fa-droplet',         color: '#2563eb' },
+  chemical:      { icon: 'fas fa-flask',            color: '#d97706' },
+  training:      { icon: 'fas fa-graduation-cap',   color: '#7c3aed' },
+  participation: { icon: 'fas fa-handshake',        color: '#0d9488' },
+};
 
 const BAND = (score) =>
   score >= 70 ? { label: 'High',   color: '#16a34a', bg: '#dcfce7', border: '#bbf7d0', icon: 'fas fa-circle-check'       }
@@ -85,8 +32,31 @@ const BAND = (score) =>
 /* ─── Main Page ─────────────────────────────────────────────────────── */
 export default function ScoringConfigPage() {
   const { showToast } = useToast();
-  const [factors, setFactors] = useState(DEFAULT_FACTORS);
-  const [saved,   setSaved]   = useState(false);
+  const [factors,  setFactors]  = useState([]);
+  const [farmers,  setFarmers]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [factorsRes, farmersRes] = await Promise.all([
+          getScoringFactors(),
+          getFarmers({ limit: 500 }),
+        ]);
+        if (cancelled) return;
+        setFactors(factorsRes);
+        setFarmers(farmersRes.farmers);
+      } catch {
+        if (!cancelled) showToast('Failed to load scoring configuration.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const totalWeight = factors.reduce((s, f) => s + f.weight, 0);
   const isValid     = totalWeight === 100;
@@ -94,26 +64,47 @@ export default function ScoringConfigPage() {
   const updateWeight = useCallback((id, val) => {
     const n = Math.min(100, Math.max(0, Number(val) || 0));
     setFactors(prev => prev.map(f => f.id === id ? { ...f, weight: n } : f));
-    setSaved(false);
   }, []);
 
-  function handleSave() {
+  async function handleSave() {
     if (!isValid) { showToast('Weights must total exactly 100%.', 'error'); return; }
-    setSaved(true);
-    showToast('Scoring configuration saved. Recalculating all farmer scores…', 'success');
+    setSaving(true);
+    try {
+      const updated = await updateScoringWeights(factors);
+      setFactors(updated.map(f => ({
+        id: f.id, code: f.code, label: f.label, description: f.description,
+        weight: f.weight, isActive: f.is_active,
+        options: (f.options ?? []).map(o => ({ id: o.id, label: o.label, score: o.score_points })),
+      })));
+      showToast('Scoring configuration saved.', 'success');
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to save scoring configuration.';
+      showToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleReset() {
-    setFactors(DEFAULT_FACTORS);
-    setSaved(false);
-    showToast('Reset to default configuration.', 'info');
+    getScoringFactors().then(setFactors);
+    showToast('Reset to saved configuration.', 'info');
   }
 
-  /* Distribution from current farmers.json adoption scores */
-  const high   = MOCK_FARMERS.filter(f => f.adoptionScore >= 70).length;
-  const medium = MOCK_FARMERS.filter(f => f.adoptionScore >= 40 && f.adoptionScore < 70).length;
-  const low    = MOCK_FARMERS.filter(f => f.adoptionScore < 40).length;
-  const total  = MOCK_FARMERS.length;
+  /* Distribution from real farmer adoption scores */
+  const { high, medium, low, total } = useMemo(() => {
+    const high   = farmers.filter(f => (f.adoptionScore ?? 0) >= 70).length;
+    const medium = farmers.filter(f => (f.adoptionScore ?? 0) >= 40 && (f.adoptionScore ?? 0) < 70).length;
+    const low    = farmers.filter(f => (f.adoptionScore ?? 0) < 40).length;
+    return { high, medium, low, total: farmers.length };
+  }, [farmers]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+        <i className="fas fa-spinner fa-spin mr-2" /> Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -125,13 +116,20 @@ export default function ScoringConfigPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Configure the 5 scoring factors and their importance weights (must total 100%)</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleReset}>
+          <Button variant="outline" onClick={handleReset} disabled={saving}>
             <i className="fas fa-rotate-left mr-2" /> Reset
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={!isValid}>
-            <i className="fas fa-save mr-2" /> Save &amp; Recalculate
+          <Button variant="primary" onClick={handleSave} disabled={!isValid || saving}>
+            {saving
+              ? <><i className="fas fa-spinner fa-spin mr-2" />Saving…</>
+              : <><i className="fas fa-save mr-2" />Save Weights</>}
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+        <i className="fas fa-circle-info shrink-0" />
+        These weights are saved but don't yet drive the automatic adoption score calculation — that still uses a separate formula.
       </div>
 
       {/* Weight total indicator */}
@@ -152,12 +150,13 @@ export default function ScoringConfigPage() {
       {/* Factor cards */}
       <div className="space-y-4">
         {factors.map(factor => {
+          const meta = FACTOR_META[factor.code] ?? { icon: 'fas fa-sliders', color: '#6b7280' };
           const weightPct = factor.weight;
           return (
             <div key={factor.id} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${factor.color}15` }}>
-                  <i className={`${factor.icon} text-base`} style={{ color: factor.color }} />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${meta.color}15` }}>
+                  <i className={meta.icon} style={{ color: meta.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-foreground">{factor.label}</div>
@@ -184,15 +183,15 @@ export default function ScoringConfigPage() {
                 <div>
                   <div className="flex justify-between text-[0.62rem] text-muted-foreground mb-1">
                     <span>Contribution to total score</span>
-                    <span className="font-semibold" style={{ color: factor.color }}>{weightPct}%</span>
+                    <span className="font-semibold" style={{ color: meta.color }}>{weightPct}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${weightPct}%`, background: factor.color }} />
+                    <div className="h-full rounded-full transition-all" style={{ width: `${weightPct}%`, background: meta.color }} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   {factor.options.map(opt => (
-                    <div key={opt.label} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border">
+                    <div key={opt.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border">
                       <span className="text-[0.68rem] text-foreground font-medium">{opt.label}</span>
                       <span className="text-[0.68rem] font-bold" style={{ color: opt.score >= 70 ? '#16a34a' : opt.score >= 40 ? '#d97706' : '#ef4444' }}>
                         {opt.score} pts
@@ -237,7 +236,9 @@ export default function ScoringConfigPage() {
           <Badge variant="info">{total} farmers</Badge>
         </div>
         <div className="p-5 space-y-3">
-          {[
+          {total === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-4">No farmers in the database yet</div>
+          ) : [
             { label: 'High Readiness (70–100)',   count: high,   pct: Math.round((high / total) * 100),   color: '#16a34a', bg: '#dcfce7' },
             { label: 'Medium Readiness (40–69)', count: medium, pct: Math.round((medium / total) * 100), color: '#d97706', bg: '#fef3c7' },
             { label: 'Low Readiness (0–39)',     count: low,    pct: Math.round((low / total) * 100),   color: '#ef4444', bg: '#fee2e2' },
@@ -255,13 +256,6 @@ export default function ScoringConfigPage() {
           ))}
         </div>
       </div>
-
-      {saved && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-700">
-          <i className="fas fa-circle-check text-green-600" />
-          <div className="text-sm font-semibold">Configuration saved. All {total} farmer scores have been recalculated.</div>
-        </div>
-      )}
     </div>
   );
 }

@@ -72,12 +72,26 @@ class FarmerCreate(BaseModel):
     # Extended / custom fields (team-lead-configured extra data)
     custom_fields: Optional[dict] = None
 
+    # Sensitive — encrypted at rest, decrypted only for Leadership on read (see get_or_404)
+    aadhaar:      Optional[str] = None
+    bank_account: Optional[str] = None
+
     @field_validator("mobile")
     @classmethod
     def validate_mobile(cls, v: str) -> str:
         digits = v.replace(" ", "").replace("-", "")
         if not digits.isdigit() or len(digits) < 10:
             raise ValueError("Mobile must be at least 10 digits")
+        return digits
+
+    @field_validator("aadhaar")
+    @classmethod
+    def validate_aadhaar(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        digits = v.replace(" ", "")
+        if not digits.isdigit() or len(digits) != 12:
+            raise ValueError("Aadhaar must be exactly 12 digits")
         return digits
 
 
@@ -137,6 +151,10 @@ class FarmerUpdate(BaseModel):
 
     # Extended / custom fields (merged JSON blob — replaces entire dict on update)
     custom_fields: Optional[dict] = None
+
+    # Sensitive — encrypted at rest, decrypted only for Leadership on read (see get_or_404)
+    aadhaar:      Optional[str] = None
+    bank_account: Optional[str] = None
 
 
 class CropsPayload(BaseModel):

@@ -50,12 +50,13 @@
 --   ── Visits & Media ─────────────────────────────────────────
 --   27. visit_types
 --   28. visits
---   29. farm_photos
+--   29. farmer_photos                 (5-slot registration photos; see also table 18)
 --   ── Scoring ────────────────────────────────────────────────
 --   30. scoring_factors               (replaces flat scoring_configs)
 --   30a.scoring_factor_options
 --   ── System / Config ────────────────────────────────────────
 --   31. notification_preferences
+--   31a.form_templates                (per-manager form/wizard configuration)
 --   32. draft_registrations
 --   33. activity_logs
 --   ── Extended (OnboardUserPage / ImportFarmersPage / etc.) ──
@@ -194,6 +195,8 @@ CREATE TABLE users (
 
   -- ── Territory ───────────────────────────────────────────────
   pin_code             VARCHAR(10)          NULL,
+  territory            VARCHAR(120)         NULL  COMMENT 'Free-text geographic assignment (display only)',
+  district             VARCHAR(80)          NULL,
   target_farmers       SMALLINT UNSIGNED    NULL  COMMENT 'Farmer count target assigned to this user',
 
   -- ── Bank / Payroll ──────────────────────────────────────────
@@ -400,6 +403,7 @@ CREATE TABLE crops (
   name       VARCHAR(80)       NOT NULL,
   category   VARCHAR(60)           NULL  COMMENT 'Cash Crop | Cereal | Vegetable | Oilseed | Spice | Fibre',
   season     VARCHAR(60)           NULL  COMMENT 'Kharif | Rabi | Zaid | Perennial',
+  is_active  TINYINT(1)        NOT NULL  DEFAULT 1,
   created_at TIMESTAMP         NOT NULL  DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP         NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -500,8 +504,10 @@ CREATE TABLE farmers (
   dob                   DATE                 NULL,
   age                   TINYINT UNSIGNED     NULL  COMMENT 'Denormalised for quick querying; derived from dob',
   education_level       ENUM('None','Primary','Secondary','Graduate','Post Graduate') NOT NULL DEFAULT 'None',
-  aadhaar_masked        VARCHAR(20)          NULL  COMMENT 'XXXX-XXXX-NNNN — last 4 digits only',
-  bank_account_masked   VARCHAR(25)          NULL  COMMENT 'Last 4 digits only',
+  aadhaar_masked        VARCHAR(20)          NULL  COMMENT 'Legacy/unused — kept for backward compat',
+  bank_account_masked   VARCHAR(25)          NULL  COMMENT 'Legacy/unused — kept for backward compat',
+  aadhaar_encrypted     TEXT                 NULL  COMMENT 'Fernet-encrypted; decrypted only for Leadership, masked otherwise',
+  bank_account_encrypted TEXT                NULL  COMMENT 'Fernet-encrypted; decrypted only for Leadership, masked otherwise',
 
   -- ── Location (Step 2) ───────────────────────────────────────
   village_id            INT UNSIGNED         NULL,
@@ -558,6 +564,14 @@ CREATE TABLE farmers (
   submission_notes      TEXT                 NULL,
   avatar_gradient       VARCHAR(120)         NULL,
   is_draft              TINYINT(1)       NOT NULL  DEFAULT 0  COMMENT '1 during step-by-step wizard; set to 0 on final submit',
+
+  -- ── Review workflow ──────────────────────────────────────────
+  review_status         ENUM('pending_review','approved','rejected') NOT NULL DEFAULT 'pending_review',
+  rejection_reason      VARCHAR(500)         NULL,
+  rejected_by_user_id   BIGINT UNSIGNED      NULL,
+  -- Leadership-configured extended field values — schema-free JSON blob.
+  custom_fields         JSON                 NULL  COMMENT 'Extended field values — stored schema-free as key→value JSON',
+
   created_at            TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP,
   updated_at            TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at            TIMESTAMP            NULL  COMMENT 'Soft delete',
@@ -568,6 +582,7 @@ CREATE TABLE farmers (
   KEY        idx_farmers_village_id       (village_id),
   KEY        idx_farmers_registered_by    (registered_by_user_id),
   KEY        idx_farmers_approved_by      (approved_by_user_id),
+  KEY        idx_farmers_rejected_by      (rejected_by_user_id),
   KEY        idx_farmers_plan_status      (plan_status),
   KEY        idx_farmers_adoption_score   (adoption_score),
   KEY        idx_farmers_deleted_at       (deleted_at),
@@ -577,7 +592,9 @@ CREATE TABLE farmers (
   CONSTRAINT fk_farmers_registered_by
     FOREIGN KEY (registered_by_user_id) REFERENCES users(id)    ON DELETE SET NULL,
   CONSTRAINT fk_farmers_approved_by
-    FOREIGN KEY (approved_by_user_id)   REFERENCES users(id)    ON DELETE SET NULL
+    FOREIGN KEY (approved_by_user_id)   REFERENCES users(id)    ON DELETE SET NULL,
+  CONSTRAINT fk_farmers_rejected_by
+    FOREIGN KEY (rejected_by_user_id)   REFERENCES users(id)    ON DELETE SET NULL
 ) ENGINE=InnoDB
   COMMENT='Farmer profiles — primary entity of the platform';
 
@@ -886,35 +903,8 @@ CREATE TABLE visits (
   COMMENT='Field visit records';
 
 
--- ─────────────────────────────────────────────────────────────
--- 29. FARM_PHOTOS
---     Photos attached to a farmer profile or a specific visit.
--- ─────────────────────────────────────────────────────────────
-CREATE TABLE farm_photos (
-  id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  farmer_id           BIGINT UNSIGNED NOT NULL,
-  visit_id            BIGINT UNSIGNED     NULL  COMMENT 'Visit during which photo was taken',
-  uploaded_by_user_id BIGINT UNSIGNED     NULL,
-  caption             VARCHAR(255)        NULL,
-  photo_url           VARCHAR(500)    NOT NULL,
-  tag                 VARCHAR(60)         NULL  COMMENT 'field | irrigation | soil | compost | infrastructure | storage | fertilizer | visit',
-  taken_at            DATE                NULL,
-  created_at          TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP,
-  updated_at          TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  PRIMARY KEY (id),
-  KEY idx_fp_farmer_id       (farmer_id),
-  KEY idx_fp_visit_id        (visit_id),
-  KEY idx_fp_uploaded_by     (uploaded_by_user_id),
-
-  CONSTRAINT fk_farm_photos_farmer
-    FOREIGN KEY (farmer_id)           REFERENCES farmers(id) ON DELETE CASCADE,
-  CONSTRAINT fk_farm_photos_visit
-    FOREIGN KEY (visit_id)            REFERENCES visits(id)  ON DELETE SET NULL,
-  CONSTRAINT fk_farm_photos_uploaded_by
-    FOREIGN KEY (uploaded_by_user_id) REFERENCES users(id)   ON DELETE SET NULL
-) ENGINE=InnoDB
-  COMMENT='Photos associated with farms and field visits';
+-- (table 29, farmer_photos, is defined earlier alongside the farmers table —
+--  see "CREATE TABLE IF NOT EXISTS farmer_photos" above)
 
 
 -- ─────────────────────────────────────────────────────────────
@@ -983,6 +973,36 @@ CREATE TABLE notification_preferences (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB
   COMMENT='Per-user notification opt-in preferences';
+
+
+-- ─────────────────────────────────────────────────────────────
+-- 31a. FORM_TEMPLATES
+--     One row per manager (or a global default row, manager_user_id=0)
+--     holding the entire farmer-registration wizard configuration as
+--     JSON blobs — dropdown options, extended fields, step overrides,
+--     module access, and territory scoping.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE form_templates (
+  id                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  manager_user_id       BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0=global default; manager user.id=per-manager override',
+  configured_by_name    VARCHAR(120)    NOT NULL DEFAULT '' COMMENT 'Display name of the team lead who last saved this template',
+  configured_by_user_id BIGINT UNSIGNED     NULL,
+  dropdowns             JSON                NULL  COMMENT 'Option lists for every wizard dropdown / toggle group',
+  extended_fields       JSON                NULL  COMMENT 'Leadership-defined extra fields for farmer registration',
+  steps                 JSON                NULL  COMMENT 'Wizard step enable/disable/rename overrides',
+  module_access         JSON                NULL  COMMENT 'Route → allowed-roles mapping for module-access control',
+  territory              JSON                NULL  COMMENT 'State/district/taluka/village IDs selected by this team lead',
+  created_at            TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_form_templates_manager (manager_user_id),
+  KEY        ix_form_templates_manager_user_id (manager_user_id),
+
+  CONSTRAINT fk_form_templates_configured_by
+    FOREIGN KEY (configured_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB
+  COMMENT='Per-manager farmer-registration wizard configuration';
 
 
 -- ─────────────────────────────────────────────────────────────
@@ -1445,6 +1465,41 @@ CREATE TABLE system_backups (
 
 
 -- ─────────────────────────────────────────────────────────────
+-- 46. SMS_GATEWAY_CONFIGS
+--     Single global row (id=1) holding the SMS gateway settings
+--     used to send login OTPs. Generic HTTP gateway design —
+--     request_url/http_method/headers_json/body_template support
+--     {mobile}/{otp}/{sender_id}/{api_key}/{api_secret} placeholders
+--     so it works with most Indian SMS gateways without a
+--     provider-specific integration. Editable by Leadership from
+--     Settings → SMS Gateway (manage_sms_gateway permission).
+--     api_key/api_secret are stored as-is; the API only ever
+--     returns them masked.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE sms_gateway_configs (
+  id                  BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  provider_name       VARCHAR(100)     NOT NULL  DEFAULT '',
+  is_active           TINYINT(1)       NOT NULL  DEFAULT 0,
+  http_method         VARCHAR(10)      NOT NULL  DEFAULT 'POST',
+  request_url         VARCHAR(500)     NOT NULL  DEFAULT '',
+  headers_json        JSON                 NULL,
+  body_template       TEXT                 NULL,
+  sender_id           VARCHAR(30)          NULL,
+  api_key             VARCHAR(255)         NULL,
+  api_secret          VARCHAR(255)         NULL,
+  updated_by_user_id  BIGINT UNSIGNED      NULL,
+  created_at          TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP        NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+
+  CONSTRAINT fk_sgc_updated_by
+    FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB
+  COMMENT='Single global row — SMS gateway settings used to send login OTPs';
+
+
+-- ─────────────────────────────────────────────────────────────
 -- SEED: PERMISSIONS + ROLE_PERMISSIONS
 -- ─────────────────────────────────────────────────────────────
 
@@ -1464,7 +1519,9 @@ INSERT IGNORE INTO permissions (name, display_name, module) VALUES
   ('edit_settings',  'Edit Settings',  'settings'),
   ('manage_users',   'Manage Users',   'admin'),
   ('manage_roles',   'Manage Roles',   'admin'),
-  ('view_audit_log', 'View Audit Log', 'admin');
+  ('view_audit_log', 'View Audit Log', 'admin'),
+  ('manage_sms_gateway', 'Manage SMS Gateway', 'settings'),
+  ('manage_master_data', 'Manage Master Data', 'admin');
 
 -- Agronomist
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
@@ -1480,7 +1537,7 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'team_lead'
   AND p.name IN (
     'view_farmers','create_farmer','edit_farmer','view_visits','create_visit',
-    'view_plans','approve_plan','view_reports','export_reports',
+    'view_plans','create_plan','approve_plan','view_reports','export_reports',
     'view_settings','edit_settings','manage_users','manage_roles'
   );
 

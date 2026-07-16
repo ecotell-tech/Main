@@ -1,7 +1,8 @@
 import { apiFetch } from '@services/api';
 
-export async function getUsers() {
-  return apiFetch('/admin/users');
+export async function getUsers({ role } = {}) {
+  const params = role ? `?role=${encodeURIComponent(role)}` : '';
+  return apiFetch(`/admin/users${params}`);
 }
 
 export async function createUser(payload) {

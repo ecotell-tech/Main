@@ -40,6 +40,7 @@ class ConsultingPlan(SoftDeleteMixin, Base):
     end_date   = Column(Date)
 
     farmer     = relationship("Farmer", foreign_keys=[farmer_id])
+    consultant = relationship("User", foreign_keys=[consultant_user_id])
     components = relationship(
         "PlanComponentStatus",
         back_populates="plan",

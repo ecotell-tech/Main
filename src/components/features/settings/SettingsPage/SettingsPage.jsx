@@ -3,7 +3,9 @@ import Button         from '@common/Button/Button';
 import { useAuth }    from '@context/AuthContext';
 import { useToast }   from '@hooks/useToast';
 import { useRoleTheme } from '@hooks/useRoleTheme';
+import { ROLES }        from '@constants/roles';
 import FORM_OPTIONS   from '@data/config/formOptions.json';
+import { getNotificationPreferences, updateNotificationPreferences } from '@services/notificationPreferenceService';
 
 const NOTIF_OPTIONS = FORM_OPTIONS.notificationOptions;
 
@@ -82,10 +84,59 @@ function PwdInput({ label, field, value, show, onChange, onToggle, error, succes
 
 // ── Tab panels ────────────────────────────────────────────────────────────────
 
+function EditableField({ label, value, onChange, error }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold mb-1.5 text-foreground">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-1 transition-colors
+          ${error ? 'border-red-400 focus:ring-red-300 bg-red-50' : 'border-input bg-card focus:ring-ring'}`}
+      />
+      {error && <p className="text-xs text-red-500 mt-1"><i className="fas fa-xmark mr-1" />{error}</p>}
+    </div>
+  );
+}
+
 function ProfilePanel({ currentUser }) {
+  const { updateProfile } = useAuth();
+  const { showToast }     = useToast();
+
+  const isLeadership = currentUser?.role === ROLES.MANAGER;
+
+  const [editing, setEditing] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [form,    setForm]    = useState({ name: currentUser?.name ?? '', mobile: currentUser?.mobile ?? '' });
+  const [errors,  setErrors]  = useState({});
+
+  function startEdit() {
+    setForm({ name: currentUser?.name ?? '', mobile: currentUser?.mobile ?? '' });
+    setErrors({});
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    const e = {};
+    if (!form.name.trim())               e.name   = 'Full name is required.';
+    if (!/^\d{10}$/.test(form.mobile))    e.mobile = 'Mobile must be exactly 10 digits.';
+    if (Object.keys(e).length) { setErrors(e); return; }
+
+    setSaving(true);
+    const result = await updateProfile({ name: form.name.trim(), mobile: form.mobile });
+    setSaving(false);
+    if (result.success) {
+      showToast('Profile updated.', 'success');
+      setEditing(false);
+    } else {
+      showToast(result.error ?? 'Failed to update profile.', 'error');
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <SectionTitle sub="Your account information, managed by your administrator.">
+      <SectionTitle sub={isLeadership ? 'Your account information — you can edit your name and mobile number.' : 'Your account information, managed by your administrator.'}>
         Profile Information
       </SectionTitle>
 
@@ -97,19 +148,33 @@ function ProfilePanel({ currentUser }) {
         >
           {currentUser?.initials ?? '?'}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-lg font-extrabold text-foreground truncate">{currentUser?.name}</div>
           <div className="text-xs text-muted-foreground">{ROLE_LABEL[currentUser?.role] ?? currentUser?.role}</div>
           {currentUser?.email && (
             <div className="text-xs text-muted-foreground mt-0.5">{currentUser.email}</div>
           )}
         </div>
+        {isLeadership && !editing && (
+          <Button variant="outline" onClick={startEdit} className="shrink-0">
+            <i className="fas fa-pen mr-2" /> Edit
+          </Button>
+        )}
       </div>
 
       {/* Fields grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Full Name"     value={currentUser?.name}   />
-        <Field label="Mobile Number" value={currentUser?.mobile} />
+        {editing ? (
+          <>
+            <EditableField label="Full Name"     value={form.name}   onChange={v => setForm(f => ({ ...f, name: v }))}   error={errors.name} />
+            <EditableField label="Mobile Number" value={form.mobile} onChange={v => setForm(f => ({ ...f, mobile: v.replace(/\D/g, '').slice(0, 10) }))} error={errors.mobile} />
+          </>
+        ) : (
+          <>
+            <Field label="Full Name"     value={currentUser?.name}   />
+            <Field label="Mobile Number" value={currentUser?.mobile} />
+          </>
+        )}
         <Field label="Role"          value={ROLE_LABEL[currentUser?.role] ?? currentUser?.role} />
         {currentUser?.designation && (
           <Field label="Designation" value={currentUser.designation} />
@@ -122,10 +187,21 @@ function ProfilePanel({ currentUser }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
-        <i className="fas fa-circle-info shrink-0" />
-        Profile details are managed by your administrator. Contact support to request changes.
-      </div>
+      {editing && (
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? <><i className="fas fa-spinner fa-spin mr-2" />Saving…</> : <><i className="fas fa-save mr-2" />Save Changes</>}
+          </Button>
+        </div>
+      )}
+
+      {!isLeadership && (
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+          <i className="fas fa-circle-info shrink-0" />
+          Profile details are managed by your administrator. Contact support to request changes.
+        </div>
+      )}
     </div>
   );
 }
@@ -247,37 +323,58 @@ function SecurityPanel({ changePassword }) {
   );
 }
 
+const DEFAULT_NOTIF_PREFS = { visitReminders: true, planUpdates: true, newAssignments: false };
+
 function NotificationsPanel() {
   const { showToast } = useToast();
-  const NOTIF_KEY = 'pscms_notification_prefs';
 
-  const [prefs, setPrefs] = useState(() => {
-    try {
-      const saved = localStorage.getItem(NOTIF_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch { /* ignore */ }
-    return { visitReminders: true, planUpdates: true, newAssignments: false };
-  });
-  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved]     = useState(DEFAULT_NOTIF_PREFS); // last-saved-from-server baseline
+  const [prefs, setPrefs]     = useState(DEFAULT_NOTIF_PREFS);
+  const [saving, setSaving]   = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNotificationPreferences()
+      .then((data) => { if (!cancelled) { setSaved(data); setPrefs(data); } })
+      .catch((err) => { if (!cancelled) showToast(err.message || 'Failed to load notification preferences.', 'error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dirty = NOTIF_OPTIONS.some(({ key }) => prefs[key] !== saved[key]);
 
   function toggle(key) {
     setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
-    setDirty(true);
   }
 
-  function handleSave() {
-    try { localStorage.setItem(NOTIF_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
-    showToast('Notification preferences saved.', 'success');
-    setDirty(false);
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await updateNotificationPreferences(prefs);
+      setSaved(updated);
+      setPrefs(updated);
+      showToast('Notification preferences saved.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to save notification preferences.', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleReset() {
-    const defaults = { visitReminders: true, planUpdates: true, newAssignments: false };
-    setPrefs(defaults);
-    setDirty(true);
+    setPrefs(DEFAULT_NOTIF_PREFS);
   }
 
   const enabledCount = Object.values(prefs).filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+        <i className="fas fa-spinner fa-spin mr-2" />Loading preferences…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -330,9 +427,9 @@ function NotificationsPanel() {
         >
           Reset to defaults
         </button>
-        <Button variant="primary" onClick={handleSave} disabled={!dirty}>
+        <Button variant="primary" onClick={handleSave} disabled={!dirty || saving}>
           <i className="fas fa-save mr-2" />
-          {dirty ? 'Save Changes' : 'Saved'}
+          {saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}
         </Button>
       </div>
     </div>

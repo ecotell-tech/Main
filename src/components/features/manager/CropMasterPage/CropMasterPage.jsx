@@ -7,43 +7,51 @@ import Badge   from '@common/Badge/Badge';
 import Button  from '@common/Button/Button';
 import { PaginationBar } from '@hooks/usePagination';
 import { useToast } from '@hooks/useToast';
-
-const INITIAL_CROPS = [
-  { id: 'CR-001', name: 'Sugarcane',   category: 'Cash Crop',    season: 'Kharif / Rabi', status: 'active',   varieties: 3, farms: 4 },
-  { id: 'CR-002', name: 'Onion',       category: 'Vegetable',    season: 'Rabi',          status: 'active',   varieties: 2, farms: 3 },
-  { id: 'CR-003', name: 'Cotton',      category: 'Cash Crop',    season: 'Kharif',        status: 'active',   varieties: 4, farms: 2 },
-  { id: 'CR-004', name: 'Soybean',     category: 'Oilseed',      season: 'Kharif',        status: 'active',   varieties: 2, farms: 3 },
-  { id: 'CR-005', name: 'Pomegranate', category: 'Horticulture', season: 'Perennial',     status: 'active',   varieties: 2, farms: 2 },
-  { id: 'CR-006', name: 'Grape',       category: 'Horticulture', season: 'Perennial',     status: 'active',   varieties: 3, farms: 2 },
-  { id: 'CR-007', name: 'Wheat',       category: 'Cereal',       season: 'Rabi',          status: 'active',   varieties: 3, farms: 1 },
-  { id: 'CR-008', name: 'Turmeric',    category: 'Spice',        season: 'Kharif',        status: 'inactive', varieties: 1, farms: 1 },
-  { id: 'CR-009', name: 'Maize',       category: 'Cereal',       season: 'Kharif',        status: 'active',   varieties: 2, farms: 0 },
-];
+import { getCrops, createCrop, updateCrop } from '@services/masterService';
+import { ApiError } from '@services/api';
 
 const CATEGORIES = ['Cash Crop', 'Vegetable', 'Oilseed', 'Horticulture', 'Cereal', 'Spice', 'Pulse', 'Other'];
 const SEASONS     = ['Kharif', 'Rabi', 'Zaid', 'Perennial', 'Kharif / Rabi'];
 
-const EMPTY_FORM = { name: '', category: '', season: '', status: 'active', varieties: 1, farms: 0 };
+const EMPTY_FORM = { name: '', category: '', season: '', isActive: true };
 
 export default function CropMasterPage() {
   const { showToast } = useToast();
-  const [crops,   setCrops]   = useState(INITIAL_CROPS);
+  const [crops,   setCrops]   = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [fCat,    setFCat]    = useState('all');
   const [fStatus, setFStatus] = useState('all');
   const [modal,   setModal]   = useState(null); // null | 'add' | 'edit'
   const [form,    setForm]    = useState(EMPTY_FORM);
   const [editId,  setEditId]  = useState(null);
+  const [saving,  setSaving]  = useState(false);
   const [cropPage, setCropPage] = useState(1);
   const CROP_PAGE_SIZE = 10;
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getCrops();
+        if (!cancelled) setCrops(data);
+      } catch {
+        if (!cancelled) showToast('Failed to load crop master.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filtered = useMemo(() => {
     return crops.filter(c => {
-      if (fCat    !== 'all' && c.category !== fCat)   return false;
-      if (fStatus !== 'all' && c.status   !== fStatus) return false;
+      if (fCat    !== 'all' && c.category !== fCat) return false;
+      if (fStatus !== 'all' && (c.isActive ? 'active' : 'inactive') !== fStatus) return false;
       if (search) {
         const q = search.toLowerCase();
-        return c.name.toLowerCase().includes(q) || c.category.toLowerCase().includes(q);
+        return c.name.toLowerCase().includes(q) || (c.category ?? '').toLowerCase().includes(q);
       }
       return true;
     });
@@ -58,32 +66,46 @@ export default function CropMasterPage() {
   }
 
   function openEdit(crop) {
-    setForm({ name: crop.name, category: crop.category, season: crop.season, status: crop.status, varieties: crop.varieties, farms: crop.farms });
+    setForm({ name: crop.name, category: crop.category ?? '', season: crop.season ?? '', isActive: crop.isActive });
     setEditId(crop.id); setModal('edit');
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim())     { showToast('Crop name is required.',     'error'); return; }
     if (!form.category)         { showToast('Category is required.',      'error'); return; }
     if (!form.season)           { showToast('Season is required.',        'error'); return; }
-    if (modal === 'add') {
-      const id = `CR-${String(crops.length + 1).padStart(3, '0')}`;
-      setCrops(prev => [...prev, { id, ...form }]);
-      showToast(`"${form.name}" added to crop master.`, 'success');
-    } else {
-      setCrops(prev => prev.map(c => c.id === editId ? { ...c, ...form } : c));
-      showToast(`"${form.name}" updated.`, 'success');
+
+    setSaving(true);
+    try {
+      if (modal === 'add') {
+        const created = await createCrop(form);
+        setCrops(prev => [...prev, created]);
+        showToast(`"${form.name}" added to crop master.`, 'success');
+      } else {
+        const updated = await updateCrop(editId, form);
+        setCrops(prev => prev.map(c => c.id === editId ? updated : c));
+        showToast(`"${form.name}" updated.`, 'success');
+      }
+      setModal(null);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to save crop. Please try again.';
+      showToast(message, 'error');
+    } finally {
+      setSaving(false);
     }
-    setModal(null);
   }
 
-  function toggleStatus(id) {
-    setCrops(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      const next = c.status === 'active' ? 'inactive' : 'active';
-      showToast(`${c.name} marked as ${next}.`, next === 'active' ? 'success' : 'info');
-      return { ...c, status: next };
-    }));
+  async function toggleStatus(id) {
+    const crop = crops.find(c => c.id === id);
+    if (!crop) return;
+    const nextActive = !crop.isActive;
+    try {
+      const updated = await updateCrop(id, { isActive: nextActive });
+      setCrops(prev => prev.map(c => c.id === id ? updated : c));
+      showToast(`${crop.name} marked as ${nextActive ? 'active' : 'inactive'}.`, nextActive ? 'success' : 'info');
+    } catch {
+      showToast('Failed to update crop status.', 'error');
+    }
   }
 
   const inputCls = 'w-full h-9 px-3 text-xs rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring';
@@ -112,8 +134,8 @@ export default function CropMasterPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total Crops',   value: crops.length,                                  color: '#2563eb', icon: 'fas fa-wheat-awn' },
-          { label: 'Active',        value: crops.filter(c => c.status === 'active').length, color: '#16a34a', icon: 'fas fa-circle-check' },
-          { label: 'Inactive',      value: crops.filter(c => c.status === 'inactive').length, color: '#9ca3af', icon: 'fas fa-circle-pause' },
+          { label: 'Active',        value: crops.filter(c => c.isActive).length,          color: '#16a34a', icon: 'fas fa-circle-check' },
+          { label: 'Inactive',      value: crops.filter(c => !c.isActive).length,         color: '#9ca3af', icon: 'fas fa-circle-pause' },
           { label: 'Categories',    value: new Set(crops.map(c => c.category)).size,       color: '#7c3aed', icon: 'fas fa-tags' },
         ].map(({ label, value, color, icon }) => (
           <div key={label} className="rounded-xl bg-muted/40 border border-border p-3">
@@ -156,14 +178,14 @@ export default function CropMasterPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {['Crop Name', 'Category', 'Season', 'Varieties', 'Assigned Farms', 'Status', 'Actions'].map(h => (
+                {['Crop Name', 'Category', 'Season', 'Assigned Farms', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[0.6rem] font-bold text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {pagedCrops.map(crop => (
-                <tr key={crop.id} className={`hover:bg-muted/10 transition-colors ${crop.status === 'inactive' ? 'opacity-60' : ''}`}>
+                <tr key={crop.id} className={`hover:bg-muted/10 transition-colors ${!crop.isActive ? 'opacity-60' : ''}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
@@ -171,17 +193,16 @@ export default function CropMasterPage() {
                       </div>
                       <div>
                         <div className="font-semibold text-foreground">{crop.name}</div>
-                        <div className="text-[0.58rem] text-muted-foreground">{crop.id}</div>
+                        <div className="text-[0.58rem] text-muted-foreground">#{crop.id}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{crop.category}</td>
                   <td className="px-4 py-3 text-muted-foreground">{crop.season}</td>
-                  <td className="px-4 py-3 font-semibold text-foreground">{crop.varieties}</td>
-                  <td className="px-4 py-3 font-semibold text-foreground">{crop.farms}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{crop.farmsCount}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={crop.status === 'active' ? 'success' : 'muted'}>
-                      {crop.status === 'active' ? 'Active' : 'Inactive'}
+                    <Badge variant={crop.isActive ? 'success' : 'muted'}>
+                      {crop.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
@@ -191,8 +212,8 @@ export default function CropMasterPage() {
                         <i className="fas fa-pen mr-1" />Edit
                       </button>
                       <button onClick={() => toggleStatus(crop.id)}
-                        className={`px-2.5 py-1 rounded-lg text-[0.65rem] font-semibold transition-colors ${crop.status === 'active' ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
-                        {crop.status === 'active' ? <><i className="fas fa-circle-pause mr-1" />Deactivate</> : <><i className="fas fa-circle-play mr-1" />Activate</>}
+                        className={`px-2.5 py-1 rounded-lg text-[0.65rem] font-semibold transition-colors ${crop.isActive ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+                        {crop.isActive ? <><i className="fas fa-circle-pause mr-1" />Deactivate</> : <><i className="fas fa-circle-play mr-1" />Activate</>}
                       </button>
                     </div>
                   </td>
@@ -201,7 +222,13 @@ export default function CropMasterPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="flex flex-col items-center py-12 gap-3 text-muted-foreground">
+            <i className="fas fa-spinner fa-spin text-2xl opacity-40" />
+            <span className="text-sm">Loading crops…</span>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="flex flex-col items-center py-12 gap-3 text-muted-foreground">
             <i className="fas fa-wheat-awn text-3xl opacity-25" />
             <span className="text-sm">No crops found</span>
@@ -261,20 +288,22 @@ export default function CropMasterPage() {
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1.5">Status</label>
                 <div className="flex gap-3">
-                  {['active', 'inactive'].map(s => (
-                    <label key={s} className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="status" value={s} checked={form.status === s}
-                        onChange={() => setForm(f => ({ ...f, status: s }))} className="accent-blue-600" />
-                      <span className="text-xs text-foreground capitalize">{s}</span>
+                  {[{ value: true, label: 'active' }, { value: false, label: 'inactive' }].map(s => (
+                    <label key={s.label} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="status" checked={form.isActive === s.value}
+                        onChange={() => setForm(f => ({ ...f, isActive: s.value }))} className="accent-blue-600" />
+                      <span className="text-xs text-foreground capitalize">{s.label}</span>
                     </label>
                   ))}
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="outline" onClick={() => setModal(null)}>Cancel</Button>
-              <Button variant="primary" onClick={handleSave}>
-                <i className="fas fa-save mr-2" />{modal === 'add' ? 'Add Crop' : 'Save Changes'}
+              <Button variant="outline" onClick={() => setModal(null)} disabled={saving}>Cancel</Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving}>
+                {saving
+                  ? <><i className="fas fa-spinner fa-spin mr-2" />Saving…</>
+                  : <><i className="fas fa-save mr-2" />{modal === 'add' ? 'Add Crop' : 'Save Changes'}</>}
               </Button>
             </div>
           </div>
