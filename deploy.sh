@@ -5,22 +5,26 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-COMPOSE="docker compose -f docker-compose.prod.yml"
+# --env-file makes Compose read ${DOMAIN}/${MYSQL_*} substitutions from
+# .env.production instead of auto-loading a plain .env (Compose's default,
+# and easy to confuse with the filename the example template actually
+# produces — see .env.production.example).
+COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 
 echo "==> Pulling latest code"
 git pull origin main
 
-echo "==> Checking .env"
+echo "==> Checking .env.production"
 required_vars=(DOMAIN ACME_EMAIL SERVER_IP MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD)
 missing=()
 for var in "${required_vars[@]}"; do
-  if ! grep -qE "^${var}=.+" .env 2>/dev/null; then
+  if ! grep -qE "^${var}=.+" .env.production 2>/dev/null; then
     missing+=("$var")
   fi
 done
 if [ "${#missing[@]}" -gt 0 ]; then
-  echo "ERROR: .env is missing or has empty values for: ${missing[*]}"
-  echo "Set these in .env before deploying (see .env.production.example)."
+  echo "ERROR: .env.production is missing or has empty values for: ${missing[*]}"
+  echo "Set these in .env.production before deploying (see .env.production.example)."
   exit 1
 fi
 
