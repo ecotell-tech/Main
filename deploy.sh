@@ -73,15 +73,15 @@ done
 
 echo "==> Running database migrations"
 # The DB is originally created by database/schema.sql (via docker-entrypoint-
-# initdb.d on first boot), not by replaying migration 001 — so on a database
-# that has never been touched by Alembic, baseline at 001 before upgrading,
-# instead of trying to re-run 001's CREATE TABLE statements against tables
-# that already exist.
+# initdb.d on first boot), which is kept in sync with the latest migration —
+# not just migration 001. So a database that has never been touched by
+# Alembic already has the head-state schema; baseline it at head, not 001,
+# or "upgrade head" will try to re-add columns schema.sql already created.
 if $COMPOSE exec -T backend alembic current 2>/dev/null | grep -q '.'; then
   echo "    Alembic already initialized on this database."
 else
-  echo "    No Alembic revision stamped yet — baselining at 001 (schema.sql already created these tables)."
-  $COMPOSE exec -T backend alembic stamp 001 || echo "WARNING: could not stamp baseline revision — check '$COMPOSE logs backend'"
+  echo "    No Alembic revision stamped yet — baselining at head (schema.sql already created this state)."
+  $COMPOSE exec -T backend alembic stamp head || echo "WARNING: could not stamp baseline revision — check '$COMPOSE logs backend'"
 fi
 
 if $COMPOSE exec -T backend alembic upgrade head; then
