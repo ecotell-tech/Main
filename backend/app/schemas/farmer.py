@@ -22,7 +22,7 @@ class FarmerPhotoOut(BaseModel):
 # ── Write schemas (request bodies) ────────────────────────────
 
 class FarmerCreate(BaseModel):
-    farmer_code: Optional[str] = None  # custom ID — auto-generated if omitted
+    farmer_code: Optional[str] = Field(default=None, max_length=20)  # custom ID — auto-generated if omitted
     first_name: str
     middle_name: Optional[str] = None
     last_name:  Optional[str] = None
@@ -97,7 +97,7 @@ class FarmerCreate(BaseModel):
 
 class FarmerUpdate(BaseModel):
     # Identity
-    farmer_code:     Optional[str] = None
+    farmer_code:     Optional[str] = Field(default=None, max_length=20)
     first_name:      Optional[str] = None
     middle_name:     Optional[str] = None
     last_name:       Optional[str] = None

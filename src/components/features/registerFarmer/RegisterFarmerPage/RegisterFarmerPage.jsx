@@ -1472,6 +1472,7 @@ export default function RegisterFarmerPage() {
               value={form.farmerId}
               onChange={(e) => set('farmerId', e.target.value)}
               id="regFarmerId"
+              maxLength={20}
             />
           </div>
         </FormField>
