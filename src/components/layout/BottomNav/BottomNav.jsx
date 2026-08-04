@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { ROUTES }           from '@constants/routes';
 import { useAuth }          from '@context/AuthContext';
 import { usePermissions }   from '@context/PermissionsContext';
@@ -6,7 +6,8 @@ import { useModuleAccess }  from '@context/ModuleAccessContext';
 import { getNavForRole }    from '@constants/routeRegistry';
 
 export default function BottomNav() {
-  const { currentUser } = useAuth();
+  const { currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
   const { getRolePermissions } = usePermissions();
   const { canRoleAccess } = useModuleAccess();
   const role = currentUser?.role ?? '';
@@ -14,6 +15,11 @@ export default function BottomNav() {
   const navGroups = getNavForRole(role, userPermissions, canRoleAccess);
   // Flatten all nav items and take the first 5 for bottom nav
   const bottomItems = navGroups.flatMap((g) => g.items).slice(0, 5);
+
+  function handleLogout() {
+    signOut();
+    navigate(ROUTES.LOGIN, { replace: true });
+  }
 
   return (
     <nav
@@ -53,6 +59,16 @@ export default function BottomNav() {
           )}
         </NavLink>
       ))}
+
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] text-muted-foreground active:text-destructive"
+        aria-label="Logout"
+      >
+        <i className="fas fa-sign-out-alt text-[1.15rem]" aria-hidden="true" />
+        <span className="text-[0.62rem] font-semibold leading-none">Logout</span>
+      </button>
     </nav>
   );
 }

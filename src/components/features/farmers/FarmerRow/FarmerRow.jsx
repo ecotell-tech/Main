@@ -18,7 +18,7 @@ const PLAN_STATUS_VARIANT = {
   rejected:  'destructive',
 };
 
-export default function FarmerRow({ farmer, role, onLogVisit, onReject }) {
+export default function FarmerRow({ farmer, role, onLogVisit, onReject, onApprove, approvingId }) {
   const navigate  = useNavigate();
   const scoreInfo = getScoreInfo(farmer.adoptionScore);
   const planStatusLabel = farmer.planStatus.charAt(0).toUpperCase() + farmer.planStatus.slice(1);
@@ -58,6 +58,12 @@ export default function FarmerRow({ farmer, role, onLogVisit, onReject }) {
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[0.6rem] font-semibold mt-0.5">
                 <i className="fas fa-clock text-[0.55rem]" />
                 Pending review
+              </span>
+            )}
+            {farmer.reviewStatus === 'approved' && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-[0.6rem] font-semibold mt-0.5">
+                <i className="fas fa-check-circle text-[0.55rem]" />
+                Approved
               </span>
             )}
           </div>
@@ -127,6 +133,23 @@ export default function FarmerRow({ farmer, role, onLogVisit, onReject }) {
               className="border-red-300 text-red-600 hover:bg-red-50"
             >
               <i className="fas fa-pencil" aria-hidden="true" />
+            </Button>
+          )}
+
+          {/* Team lead: approve button — only while still pending review */}
+          {isTeamLead && !isRejected && farmer.reviewStatus === 'pending_review' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={approvingId === farmer.id}
+              onClick={() => onApprove?.(farmer)}
+              aria-label={`Approve registration of ${farmer.name}`}
+              title="Approve this registration"
+              className="text-green-600 hover:bg-green-50 hover:text-green-700"
+            >
+              {approvingId === farmer.id
+                ? <i className="fas fa-spinner fa-spin" aria-hidden="true" />
+                : <i className="fas fa-check-circle" aria-hidden="true" />}
             </Button>
           )}
 

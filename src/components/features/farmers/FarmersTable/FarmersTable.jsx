@@ -35,6 +35,8 @@ export default function FarmersTable({
   totalPages,
   onLogVisit,
   onReject,
+  onApprove,
+  approvingId,
 }) {
   const navigate   = useNavigate();
   const isTeamLead = role === 'team_lead' || role === 'supervisor';
@@ -143,6 +145,18 @@ export default function FarmersTable({
                   <Button variant="blue" size="sm" onClick={() => navigate(`/app/farmers/${farmer.id}`)}>
                     <i className="fas fa-eye" aria-hidden="true" /> View
                   </Button>
+                  {isTeamLead && !isRejected && farmer.reviewStatus === 'pending_review' && (
+                    <Button
+                      variant="ghost" size="sm"
+                      className="text-green-600 hover:bg-green-50"
+                      disabled={approvingId === farmer.id}
+                      onClick={() => onApprove?.(farmer)}
+                    >
+                      {approvingId === farmer.id
+                        ? <i className="fas fa-spinner fa-spin" aria-hidden="true" />
+                        : <i className="fas fa-check-circle" aria-hidden="true" />} Approve
+                    </Button>
+                  )}
                   {isTeamLead && !isRejected && (
                     <Button
                       variant="ghost" size="sm"
@@ -201,6 +215,8 @@ export default function FarmersTable({
                     role={role}
                     onLogVisit={onLogVisit}
                     onReject={onReject}
+                    onApprove={onApprove}
+                    approvingId={approvingId}
                   />
                 ))
               ) : (

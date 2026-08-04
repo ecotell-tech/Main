@@ -286,6 +286,16 @@ export async function rejectFarmer(farmerId, reason) {
 }
 
 /**
+ * Team lead approves a farmer registration record — clears pending_review
+ * (and any prior rejection) so the record shows as Approved.
+ * @param {string|number} farmerId
+ * @returns {Promise<object>}   Updated farmer detail.
+ */
+export async function approveFarmer(farmerId) {
+  return apiFetch(`/farmers/${farmerId}/approve`, { method: 'PUT' });
+}
+
+/**
  * Fetch all currently-active farmer→representative task assignments.
  * @returns {Promise<{farmerId: number, userId: number, userName: string, dueDate: string|null}[]>}
  */

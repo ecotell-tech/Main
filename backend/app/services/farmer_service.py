@@ -391,6 +391,30 @@ class FarmerService:
             raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
         return await self.get_or_404(farmer_id)
 
+    async def approve(self, farmer_id: int, approved_by_user_id: int) -> FarmerDetail:
+        db = self.repo.db
+        try:
+            farmer = await self.repo.get_or_404(farmer_id, "Farmer")
+            await self.repo.update(
+                farmer,
+                review_status="approved",
+                approved_by_user_id=approved_by_user_id,
+                approved_date=_date.today(),
+                # Clear any prior rejection — approving a previously-rejected
+                # (and since-corrected) record should stop showing it as rejected.
+                rejection_reason=None,
+                rejected_by_user_id=None,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+        return await self.get_or_404(farmer_id)
+
     async def reject(self, farmer_id: int, reason: Optional[str], rejected_by_user_id: int) -> FarmerDetail:
         db = self.repo.db
         try:
@@ -672,10 +696,19 @@ class FarmerService:
                     row=idx, success=True,
                     farmer_id=farmer.id, farmer_code=farmer.farmer_code,
                 ))
-            except Exception as exc:
+            except HTTPException as exc:
+                # Known, friendly errors (duplicate Farmer ID/mobile, not found, etc.)
+                # — show just the clean detail message, not "409: <message>".
                 results.append(BulkImportRowResult(
                     row=idx, success=False,
-                    error=str(exc),
+                    error=str(exc.detail),
+                ))
+            except Exception:
+                # Anything unexpected (DB error, bad data, etc.) — never leak a raw
+                # exception string to the spreadsheet-import results table.
+                results.append(BulkImportRowResult(
+                    row=idx, success=False,
+                    error="Could not import this row — please check the data and try again.",
                 ))
 
         return BulkImportResponse(

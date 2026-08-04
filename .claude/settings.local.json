@@ -4,7 +4,32 @@
       "PowerShell(docker exec profitportal_backend alembic stamp 001 2>&1)",
       "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/health\" -Method Get -ErrorAction SilentlyContinue)",
       "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/docs\" -Method Get -ErrorAction SilentlyContinue)",
-      "PowerShell(docker cp \"d:\\\\PSCMS\\\\ProfitPortal\\\\database\\\\seed_maharashtra_geography.sql\" profitportal_db:/tmp/seed_geography.sql 2>&1)"
+      "PowerShell(docker cp \"d:\\\\PSCMS\\\\ProfitPortal\\\\database\\\\seed_maharashtra_geography.sql\" profitportal_db:/tmp/seed_geography.sql 2>&1)",
+      "Bash(awk 'END{print NR}' district_map.txt)",
+      "Bash(awk -F',' '$1==27{print $3}' 2-district.csv)",
+      "Bash(awk -F'|' '{print $1}' district_map.txt)",
+      "Bash(awk 'END{print \"dup lines: \" NR}')",
+      "Bash(awk -F'|' '{print $2}' village.txt)",
+      "Bash(awk 'END{print \"names with apostrophe: \" NR}')",
+      "Bash(awk -F'|' '$2==\"\"' village.txt)",
+      "Bash(awk 'END{print \"empty names: \" NR}')",
+      "Bash(awk 'END{print NR}' village_uniq.txt)",
+      "Bash(awk -F'|' '{print $1}' village_uniq.txt)",
+      "Bash(awk -F'|' '{print $1}' subdist.txt)",
+      "Bash(awk 'END{print \"village subdist codes with NO matching taluka: \" NR}')",
+      "Bash(awk --version)",
+      "Bash(awk 'END{print NR \" lines total\"}' seed_maharashtra_full.sql)",
+      "Bash(awk 'END{print NR}')",
+      "Bash(where mysql *)",
+      "Bash(where docker *)",
+      "Bash(cp \"C:\\\\Users\\\\Dell\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--ProfitPortal-Main\\\\c7cf3a00-4183-4ba2-be7b-2ea07927f15d\\\\scratchpad\\\\lgd\\\\seed_maharashtra_full.sql\" \"d:\\\\ProfitPortal\\\\Main\\\\database\\\\seed_maharashtra_full_lgd.sql\" *)",
+      "Bash(awk '-F|' ' *)",
+      "Bash(sort -k2 -n -r)",
+      "Bash(awk -F'|' '{c++} END{print c}' village_uniq.txt)",
+      "Bash(ls C:/Users/Dell/AppData/Local/Temp/claude/d--ProfitPortal-Main/c7cf3a00-4183-4ba2-be7b-2ea07927f15d/scratchpad/lgd)"
+    ],
+    "additionalDirectories": [
+      "d:\\ProfitPortal\\Main\\database"
     ]
   }
 }

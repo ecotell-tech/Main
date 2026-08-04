@@ -48,4 +48,10 @@
          failing. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- App is sideloaded (not distributed via Play Store), so it installs its
+         own updates: this lets it launch the system package installer after
+         downloading a newer APK. Android still requires the user to confirm
+         the install screen manually — there is no way around that for a
+         non-Play-Store app, by design. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

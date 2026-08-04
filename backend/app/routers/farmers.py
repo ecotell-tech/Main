@@ -122,6 +122,17 @@ async def complete_registration(
     return await service.complete_registration(farmer_id, current_user)
 
 
+@router.put("/{farmer_id}/approve", response_model=FarmerDetail)
+async def approve_farmer(
+    farmer_id:    int,
+    service:      FarmerService = Depends(get_farmer_service),
+    current_user: User          = Depends(require_permission("approve_plan")),
+):
+    """Team Lead approves a farmer registration — clears pending_review status
+    (and any prior rejection) so the record shows as Approved."""
+    return await service.approve(farmer_id, current_user.id)
+
+
 @router.put("/{farmer_id}/reject", response_model=FarmerDetail)
 async def reject_farmer(
     farmer_id:    int,

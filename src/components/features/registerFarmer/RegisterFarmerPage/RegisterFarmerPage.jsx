@@ -400,7 +400,7 @@ function PhotoZone({ id, icon, caption, file, onFile, error, small }) {
       {/* ── Fullscreen camera viewfinder ───────────────────────────────────── */}
       {showCamera && (
         <div
-          className="fixed inset-0 z-[9999] bg-black"
+          className="fixed inset-0 z-[10000] bg-black"
           style={{ touchAction: 'none' }}
         >
           {/* Live video — fills entire screen */}
@@ -501,7 +501,7 @@ function PhotoZone({ id, icon, caption, file, onFile, error, small }) {
               {/* ── Full-screen image preview lightbox ── */}
               {showPreview && (
                 <div
-                  className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+                  className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
                   onClick={() => setShowPreview(false)}
                 >
                   <img

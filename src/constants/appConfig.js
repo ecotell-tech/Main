@@ -19,7 +19,7 @@ export const APP_CONFIG = Object.freeze({
     version:     'v1.1',
     developer:   'Ecotell.in',
     year:        2026,
-    logoSrc:     '/assets/images/logo.svg',
+    logoSrc:     '/assets/images/logo.jpeg',
     /** Feature highlights shown on the login brand panel. */
     features: [
       { icon: 'fas fa-users',          text: 'Manage field representatives and capture structured farmer data' },

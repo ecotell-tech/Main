@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFarmers, rejectFarmer } from '@services/farmerService';
+import { getFarmers, rejectFarmer, approveFarmer } from '@services/farmerService';
 import { useTableFilter }           from '@hooks/useTableFilter';
 import { useModal }                 from '@hooks/useModal';
 import { useAuth }                  from '@context/AuthContext';
@@ -39,6 +39,9 @@ export default function FarmersPage() {
   const [rejectTarget,  setRejectTarget]  = useState(null); // farmer being rejected
   const [rejectReason,  setRejectReason]  = useState('');
   const [rejectLoading, setRejectLoading] = useState(false);
+
+  // Approval — no reason needed, so no modal; just an in-flight id for the button spinner
+  const [approvingId, setApprovingId] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -101,6 +104,20 @@ export default function FarmersPage() {
       showToast(err?.message || 'Failed to reject. Try again.', 'error');
     } finally {
       setRejectLoading(false);
+    }
+  }
+
+  // ── Approval handler ──────────────────────────────────────────
+  async function handleApprove(farmer) {
+    setApprovingId(farmer.id);
+    try {
+      await approveFarmer(farmer.id);
+      showToast(`Registration of "${farmer.name}" approved.`, 'success');
+      load(); // refresh list
+    } catch (err) {
+      showToast(err?.message || 'Failed to approve. Try again.', 'error');
+    } finally {
+      setApprovingId(null);
     }
   }
 
@@ -195,6 +212,8 @@ export default function FarmersPage() {
         pageSize={PAGE_SIZE}
         onLogVisit={visitModal.openModal}
         onReject={handleRejectClick}
+        onApprove={handleApprove}
+        approvingId={approvingId}
       />
 
       <VisitLogModal

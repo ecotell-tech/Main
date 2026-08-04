@@ -24,6 +24,10 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',  icon: 'fas fa-bell'         },
 ];
 
+// Opens in a new tab instead of switching panels — kept visually identical
+// to the tabs above but rendered as a real link (see the `href` check below).
+const HELP_LINK = { href: '/tutorial/index.html', label: 'Help & Tutorial', icon: 'fas fa-circle-question' };
+
 function getInitialTab() {
   const hash = window.location.hash.replace('#', '');
   return TABS.find(t => t.id === hash)?.id ?? 'profile';
@@ -436,6 +440,78 @@ function NotificationsPanel() {
   );
 }
 
+// ── App update banner (Android shell only) ──────────────────────────────────
+// The Android app is sideloaded, not distributed via Play Store, so it checks
+// for its own updates. window.AndroidUpdater is injected by MainActivity.java
+// and only exists inside the native app — this renders nothing on the web.
+
+function AppUpdateBanner() {
+  const isNative = typeof window !== 'undefined' && !!window.AndroidUpdater;
+  const [status, setStatus] = useState('idle'); // idle | checking | available | downloading | installing | upToDate | failed
+  const [latest, setLatest] = useState(null);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!isNative) return undefined;
+
+    let cancelled = false;
+    setStatus('checking');
+    fetch('/app-updates/latest.json', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setLatest(data);
+        const current = window.AndroidUpdater.getVersionCode();
+        setStatus(data.versionCode > current ? 'available' : 'upToDate');
+      })
+      .catch(() => { if (!cancelled) setStatus('failed'); });
+
+    window.onAndroidUpdateStatus = (s, msg) => {
+      setStatus(s);
+      setMessage(msg || '');
+    };
+    return () => {
+      cancelled = true;
+      window.onAndroidUpdateStatus = null;
+    };
+  }, [isNative]);
+
+  if (!isNative || ['idle', 'checking', 'upToDate'].includes(status)) return null;
+
+  function handleUpdate() {
+    if (!latest) return;
+    window.AndroidUpdater.downloadAndInstall(new URL(latest.apkUrl, window.location.origin).href);
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200">
+      <i className="fas fa-rocket text-blue-600 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-bold text-blue-800">
+          {status === 'available'   && `Update available — v${latest.versionName}`}
+          {status === 'downloading' && 'Downloading update…'}
+          {status === 'installing'  && 'Opening installer…'}
+          {status === 'failed'      && 'Update failed'}
+        </div>
+        <div className="text-xs text-blue-700 mt-0.5">
+          {status === 'available' && (latest.notes || 'A newer version of the app is ready to install.')}
+          {status === 'failed'    && (message || 'Please try again, or check your connection.')}
+          {status === 'downloading' && 'This can take a minute on a slow connection.'}
+          {status === 'installing'  && 'Confirm the install screen when it appears.'}
+        </div>
+      </div>
+      {status === 'available' && (
+        <Button variant="primary" onClick={handleUpdate} className="shrink-0">
+          <i className="fas fa-download mr-2" /> Update Now
+        </Button>
+      )}
+      {(status === 'downloading' || status === 'installing') && (
+        <i className="fas fa-spinner fa-spin text-blue-600 shrink-0" />
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -510,6 +586,18 @@ export default function SettingsPage() {
                 </li>
               );
             })}
+            <li className="shrink-0">
+              <a
+                href={HELP_LINK.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <i className={`${HELP_LINK.icon} text-xs w-4 text-center shrink-0`} />
+                <span>{HELP_LINK.label}</span>
+                <i className="fas fa-arrow-up-right-from-square ml-auto text-[0.6rem] opacity-50 hidden sm:block" />
+              </a>
+            </li>
           </ul>
         </nav>
 

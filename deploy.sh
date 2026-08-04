@@ -28,6 +28,14 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 1
 fi
 
+# Load the actual values (MYSQL_ROOT_PASSWORD etc.) as real shell variables —
+# used later for the direct `mysql`/`mysqldump` calls in the geography-seed
+# step. Safer than repeatedly grep|cut-parsing the file, which breaks if a
+# password contains "=".
+set -a
+source .env.production
+set +a
+
 echo "==> Checking backend/.env.production"
 backend_required_vars=(DATABASE_URL REDIS_URL JWT_SECRET PII_ENCRYPTION_KEY CORS_ORIGINS)
 backend_missing=()
@@ -91,6 +99,35 @@ else
   echo "         fallback (app/main.py) will still attempt to self-heal missing"
   echo "         columns/tables on every restart, but check 'alembic history'"
   echo "         and '$COMPOSE logs backend' to fix the underlying migration."
+fi
+
+echo "==> Seeding Maharashtra districts/talukas/villages (if not already applied)"
+# Idempotency check, not just INSERT IGNORE: the villages table has no unique
+# constraint, so re-running the seed file unconditionally on every deploy would
+# duplicate all ~43,700 village rows each time. Only run it the first time.
+# This file only ever INSERTs into states/districts/talukas/villages — never
+# farmers or users — see database/seed_maharashtra_full_lgd.sql's own header.
+district_count=$($COMPOSE exec -T db mysql -N -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" \
+  -e "SELECT COUNT(*) FROM districts WHERE state_id = (SELECT id FROM states WHERE code='MH');" 2>/dev/null || echo 0)
+village_count=$($COMPOSE exec -T db mysql -N -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" \
+  -e "SELECT COUNT(*) FROM villages;" 2>/dev/null || echo 0)
+
+if [ "${district_count:-0}" -ge 36 ] && [ "${village_count:-0}" -ge 40000 ]; then
+  echo "    Already seeded (districts=$district_count, villages=$village_count) — skipping."
+else
+  echo "    Backing up database before seeding (districts=$district_count, villages=$village_count)"
+  backup_file="backup_before_geography_seed_$(date +%Y%m%d_%H%M%S).sql"
+  $COMPOSE exec -T db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --all-databases > "$backup_file"
+  if [ ! -s "$backup_file" ]; then
+    echo "ERROR: backup file is empty — aborting seed, nothing was written to the database."
+    exit 1
+  fi
+  echo "    Backup saved to $backup_file ($(du -h "$backup_file" | cut -f1))"
+
+  echo "    Running database/seed_maharashtra_full_lgd.sql"
+  $COMPOSE exec -T db mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" \
+    < database/seed_maharashtra_full_lgd.sql
+  echo "    Seed applied."
 fi
 
 echo "==> Restarting backend (picks up any schema the migration step just applied)"
